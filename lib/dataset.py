@@ -25,7 +25,7 @@ from utils.box_util import get_3d_box
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-MAX_OBJ_POINTS = 10000
+MAX_OBJ_POINTS = 7000
 
 # data path
 SCANNET_V2_TSV = os.path.join(CONF.PATH.SCANNET_META, "scannetv2-labels.combined.tsv")
@@ -114,8 +114,9 @@ class ScannetReferenceDataset(Dataset):
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
         ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
-        
-        point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)        
+
+        complete_point_cloud = point_cloud
+        point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
         instance_labels = instance_labels[choices]
         semantic_labels = semantic_labels[choices]
         pcl_color = pcl_color[choices]
@@ -227,17 +228,16 @@ class ScannetReferenceDataset(Dataset):
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
 
-        xyz = data_dict["point_clouds"][:, 0:3]
-        color = data_dict["point_clouds"][:, 3:6]
+        xyz = complete_point_cloud[:, 0:3]
+        color = complete_point_cloud[:, 3:6]
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(xyz)
         pcd.colors = o3d.utility.Vector3dVector(color)
-        # o3d.visualization.draw_geometries([pcd])
+        #o3d.visualization.draw_geometries([pcd])
 
         bbox_count = data_dict["center_label"].shape[0]
         objects_num_points = []
         objects = []
-        print('Number of gt bboxes ' + str(bbox_count))
         for i in range(bbox_count):
             bbox_center = data_dict["center_label"][i]
             bbox_heading_class = data_dict['heading_class_label'][i]
@@ -255,13 +255,16 @@ class ScannetReferenceDataset(Dataset):
             vol.axis_max = np.max(xyz)
             vol.axis_min = np.min(xyz)
             cropped = vol.crop_point_cloud(pcd)
-            # o3d.visualization.draw_geometries([cropped])
+            #o3d.visualization.draw_geometries([cropped])
             object_points = np.asarray(cropped.points)
             objects_num_points.append(object_points.shape[0])
             object_colors = np.asarray(cropped.colors)
-            objects.append(np.resize(np.concatenate((object_points, object_colors), axis=1), (MAX_OBJ_POINTS, 6)))
+            obj_pc = np.concatenate((object_points, object_colors), axis=1)
+            obj_pc = random_sampling(obj_pc, MAX_OBJ_POINTS)
+            objects.append(obj_pc)
 
-        data_dict["gt_objects"] = np.array(objects).astype(np.int64)
+        data_dict["gt_objects"] = np.array(objects).astype(np.float32)
+
         return data_dict
     
     def _get_raw2label(self):
