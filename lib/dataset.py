@@ -12,11 +12,14 @@ import pickle
 import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
+import open3d as o3d
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from lib.config import CONF
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
+from utils.box_util import get_3d_box
+
 
 # data setting
 DC = ScannetDatasetConfig()
@@ -191,24 +194,27 @@ class ScannetReferenceDataset(Dataset):
             
         data_dict = {}
         data_dict["point_clouds"] = point_cloud.astype(np.float32) # point cloud data including features
-        data_dict["lang_feat"] = lang_feat.astype(np.float32) # language feature vectors
-        data_dict["lang_len"] = np.array(lang_len).astype(np.int64) # length of each description
-        data_dict["center_label"] = target_bboxes.astype(np.float32)[:,0:3] # (MAX_NUM_OBJ, 3) for GT box center XYZ
-        data_dict["heading_class_label"] = angle_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
-        data_dict["heading_residual_label"] = angle_residuals.astype(np.float32) # (MAX_NUM_OBJ,)
-        data_dict["size_class_label"] = size_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
-        data_dict["size_residual_label"] = size_residuals.astype(np.float32) # (MAX_NUM_OBJ, 3)
-        target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))                                
-        target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:,-2][0:num_bbox]]                 
+        data_dict["lang_feat"] = lang_feat.astype(np.float32)  # language feature vectors
+        data_dict["lang_len"] = np.array(lang_len).astype(np.int64)  # length of each description
+        data_dict["center_label"] = target_bboxes.astype(np.float32)[:, 0:3]  # (MAX_NUM_OBJ, 3) for GT box center XYZ
+        data_dict["heading_class_label"] = angle_classes.astype(
+            np.int64)  # (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
+        data_dict["heading_residual_label"] = angle_residuals.astype(np.float32)  # (MAX_NUM_OBJ,)
+        data_dict["size_class_label"] = size_classes.astype(
+            np.int64)  # (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
+        data_dict["size_residual_label"] = size_residuals.astype(np.float32)  # (MAX_NUM_OBJ, 3)
+        target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
+        target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:, -2][0:num_bbox]]
         data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
-        data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
-        data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
+        data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64)  # (MAX_NUM_OBJ,) semantic class index
+        data_dict["box_label_mask"] = target_bboxes_mask.astype(
+            np.float32)  # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["vote_label"] = point_votes.astype(np.float32)
         data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
-        data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
-        data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
+        data_dict["ref_box_label"] = ref_box_label.astype(np.int64)  # 0/1 reference labels for each object bbox
+        data_dict["ref_box_label"] = ref_box_label.astype(np.int64)  # 0/1 reference labels for each object bbox
         data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
         data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
         data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)
@@ -219,6 +225,34 @@ class ScannetReferenceDataset(Dataset):
         data_dict["object_cat"] = np.array(self.raw2label[object_name]).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
+
+        xyz = data_dict["point_clouds"][:, 0:3]
+        color = data_dict["point_clouds"][:, 3:6]
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(xyz)
+        pcd.colors = o3d.utility.Vector3dVector(color)
+        # o3d.visualization.draw_geometries([pcd])
+
+        for i in range(data_dict["center_label"].shape[0]):
+            bbox_center = data_dict["center_label"][i]
+            bbox_heading_class = data_dict['heading_class_label'][i]
+            bbox_heading_residual = data_dict["heading_residual_label"][i]
+            bbox_size_class = data_dict["size_class_label"][i]
+            bbox_size_residual = data_dict["size_residual_label"][i]
+
+            obb = DC.param2obb(bbox_center, bbox_heading_class,
+                                        bbox_heading_residual,
+                                        bbox_size_class, bbox_size_residual)
+            bbox = get_3d_box(obb[3:6], obb[6], obb[0:3])
+            vol = o3d.visualization.SelectionPolygonVolume()
+            vol.bounding_polygon = o3d.utility.Vector3dVector(bbox)
+            vol.orthogonal_axis = 'z'
+            vol.axis_max = np.max(xyz)
+            vol.axis_min = np.min(xyz)
+            cropped = vol.crop_point_cloud(pcd)
+            # o3d.visualization.draw_geometries([cropped])
+
+
 
         return data_dict
     
