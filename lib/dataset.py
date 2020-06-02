@@ -233,7 +233,10 @@ class ScannetReferenceDataset(Dataset):
         pcd.colors = o3d.utility.Vector3dVector(color)
         # o3d.visualization.draw_geometries([pcd])
 
-        for i in range(data_dict["center_label"].shape[0]):
+
+        bbox_count = data_dict["center_label"].shape[0]
+        objects = []
+        for i in range(bbox_count):
             bbox_center = data_dict["center_label"][i]
             bbox_heading_class = data_dict['heading_class_label'][i]
             bbox_heading_residual = data_dict["heading_residual_label"][i]
@@ -251,9 +254,11 @@ class ScannetReferenceDataset(Dataset):
             vol.axis_min = np.min(xyz)
             cropped = vol.crop_point_cloud(pcd)
             # o3d.visualization.draw_geometries([cropped])
+            object_points = np.asarray(cropped.points)
+            object_colors = np.asarray(cropped.colors)
+            objects.append(np.concatenate((object_points, object_colors), axis=1))
 
-
-
+        # data_dict["gt_objects"] = objects
         return data_dict
     
     def _get_raw2label(self):
