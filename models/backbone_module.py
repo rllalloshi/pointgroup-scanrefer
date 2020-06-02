@@ -90,12 +90,11 @@ class Pointnet2Backbone(nn.Module):
                 XXX_features: float32 Tensor of shape (B,K,D)
                 XXX-inds: int64 Tensor of shape (B,K) values in [0,N-1]
         """
-        
-        pointcloud = data_dict["point_clouds"]
 
-        batch_size = pointcloud.shape[0]
 
-        xyz, features = self._break_up_pc(pointcloud)
+        # batch_size = pointcloud.shape[0]
+
+        xyz, features = data_dict["xyz_gt"], data_dict['features_gt']
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
         xyz, features, fps_inds = self.sa1(xyz, features)

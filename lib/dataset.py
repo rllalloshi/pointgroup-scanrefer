@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import h5py
+import torch
 import json
 import pickle
 import numpy as np
@@ -25,6 +26,7 @@ from utils.box_util import get_3d_box
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
+MAX_POINT_NUM = 50
 
 # data path
 SCANNET_V2_TSV = os.path.join(CONF.PATH.SCANNET_META, "scannetv2-labels.combined.tsv")
@@ -258,7 +260,18 @@ class ScannetReferenceDataset(Dataset):
             object_colors = np.asarray(cropped.colors)
             objects.append(np.concatenate((object_points, object_colors), axis=1))
 
-        # data_dict["gt_objects"] = objects
+
+        output_objects = torch.zeros(0).float()
+        for i in range(len(objects)):
+            tens = torch.from_numpy(objects[i]).float()
+            if tens.shape[0] < MAX_POINT_NUM:
+                tens = torch.nn.functional.pad(tens, (0, 0, 0, MAX_POINT_NUM-tens.shape[0]))
+            else:
+                tens = tens[0:MAX_POINT_NUM]
+            output_objects = torch.cat((output_objects,tens.unsqueeze(0)))
+
+        data_dict["gt_objects"] = output_objects
+
         return data_dict
     
     def _get_raw2label(self):
