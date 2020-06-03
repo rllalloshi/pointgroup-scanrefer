@@ -26,44 +26,44 @@ class Pointnet2Backbone(nn.Module):
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
         self.sa1 = PointnetSAModuleVotes(
-                npoint=2048,
+                npoint=200,
                 radius=0.2,
                 nsample=64,
-                mlp=[input_feature_dim, 64, 64, 128],
+                mlp=[input_feature_dim, 32, 32, 64],
                 use_xyz=True,
                 normalize_xyz=True
             )
 
         self.sa2 = PointnetSAModuleVotes(
-                npoint=1024,
+                npoint=1,
                 radius=0.4,
                 nsample=32,
-                mlp=[128, 128, 128, 256],
+                mlp=[64, 64, 64, 128],
                 use_xyz=True,
                 normalize_xyz=True
             )
 
         self.sa3 = PointnetSAModuleVotes(
-                npoint=512,
+                npoint=60,
                 radius=0.8,
                 nsample=16,
-                mlp=[256, 128, 128, 256],
+                mlp=[128, 64, 64, 128],
                 use_xyz=True,
                 normalize_xyz=True
             )
 
         self.sa4 = PointnetSAModuleVotes(
-                npoint=256,
+                npoint=40,
                 radius=1.2,
                 nsample=16,
-                mlp=[256, 128, 128, 256],
+                mlp=[128, 64, 64, 128],
                 use_xyz=True,
                 normalize_xyz=True
             )
 
         # --------- 2 FEATURE UPSAMPLING LAYERS --------
-        self.fp1 = PointnetFPModule(mlp=[256+256,256,256])
-        self.fp2 = PointnetFPModule(mlp=[256+256,256,256])
+        self.fp1 = PointnetFPModule(mlp=[128+128,128,128])
+        self.fp2 = PointnetFPModule(mlp=[128+128,128,128])
 
     def _break_up_pc(self, pc):
         xyz = pc[..., :3].contiguous()
@@ -90,12 +90,11 @@ class Pointnet2Backbone(nn.Module):
                 XXX_features: float32 Tensor of shape (B,K,D)
                 XXX-inds: int64 Tensor of shape (B,K) values in [0,N-1]
         """
-        
-        pointcloud = data_dict["point_clouds"]
 
-        batch_size = pointcloud.shape[0]
 
-        xyz, features = self._break_up_pc(pointcloud)
+        # batch_size = pointcloud.shape[0]
+
+        xyz, features = data_dict["xyz_gt"], data_dict['features_gt']
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
         xyz, features, fps_inds = self.sa1(xyz, features)

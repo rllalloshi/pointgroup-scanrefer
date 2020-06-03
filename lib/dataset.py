@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import h5py
+import torch
 import json
 import pickle
 import numpy as np
@@ -14,51 +15,52 @@ import multiprocessing as mp
 from torch.utils.data import Dataset
 import open3d as o3d
 
-sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
+sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
 from lib.config import CONF
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
 from utils.box_util import get_3d_box
 
-
 # data setting
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-MAX_OBJ_POINTS = 7000
+MAX_OBJ_POINTS = 1000
 
 # data path
 SCANNET_V2_TSV = os.path.join(CONF.PATH.SCANNET_META, "scannetv2-labels.combined.tsv")
 MULTIVIEW_DATA = os.path.join(CONF.PATH.SCANNET_DATA, "enet_feats.hdf5")
 GLOVE_PICKLE = os.path.join(CONF.PATH.DATA, "glove.p")
+
+
 # MAX_DES_LEN = 30
 # MAX_DES_LEN = 117
 
 class ScannetReferenceDataset(Dataset):
-       
-    def __init__(self, scanrefer, scanrefer_all_scene, 
-        split="train", 
-        num_points=40000,
-        use_height=False, 
-        use_color=False, 
-        use_normal=False, 
-        use_multiview=False, 
-        augment=False):
+
+    def __init__(self, scanrefer, scanrefer_all_scene,
+                 split="train",
+                 num_points=40000,
+                 use_height=False,
+                 use_color=False,
+                 use_normal=False,
+                 use_multiview=False,
+                 augment=False):
 
         self.scanrefer = scanrefer
-        self.scanrefer_all_scene = scanrefer_all_scene # all scene_ids in scanrefer
+        self.scanrefer_all_scene = scanrefer_all_scene  # all scene_ids in scanrefer
         self.split = split
         self.num_points = num_points
-        self.use_color = use_color        
+        self.use_color = use_color
         self.use_height = use_height
-        self.use_normal = use_normal        
+        self.use_normal = use_normal
         self.use_multiview = use_multiview
         self.augment = augment
 
         # load data
         self._load_data()
         self.multiview_data = {}
-       
+
     def __len__(self):
         return len(self.scanrefer)
 
@@ -68,7 +70,7 @@ class ScannetReferenceDataset(Dataset):
         object_id = int(self.scanrefer[idx]["object_id"])
         object_name = " ".join(self.scanrefer[idx]["object_name"].split("_"))
         ann_id = self.scanrefer[idx]["ann_id"]
-        
+
         # get language features
         lang_feat = self.lang[scene_id][str(object_id)][ann_id]
         lang_len = len(self.scanrefer[idx]["token"])
@@ -81,16 +83,16 @@ class ScannetReferenceDataset(Dataset):
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
 
         if not self.use_color:
-            point_cloud = mesh_vertices[:,0:3] # do not use color for now
-            pcl_color = mesh_vertices[:,3:6]
+            point_cloud = mesh_vertices[:, 0:3]  # do not use color for now
+            pcl_color = mesh_vertices[:, 3:6]
         else:
-            point_cloud = mesh_vertices[:,0:6] 
-            point_cloud[:,3:] = (point_cloud[:,3:]-MEAN_COLOR_RGB)/256.0
-            pcl_color = point_cloud[:,3:]
-        
+            point_cloud = mesh_vertices[:, 0:6]
+            point_cloud[:, 3:] = (point_cloud[:, 3:] - MEAN_COLOR_RGB) / 256.0
+            pcl_color = point_cloud[:, 3:]
+
         if self.use_normal:
-            normals = mesh_vertices[:,6:9]
-            point_cloud = np.concatenate([point_cloud, normals],1)
+            normals = mesh_vertices[:, 6:9]
+            point_cloud = np.concatenate([point_cloud, normals], 1)
 
         if self.use_multiview:
             # load multiview database
@@ -99,60 +101,60 @@ class ScannetReferenceDataset(Dataset):
                 self.multiview_data[pid] = h5py.File(MULTIVIEW_DATA, "r", libver="latest")
 
             multiview = self.multiview_data[pid][scene_id]
-            point_cloud = np.concatenate([point_cloud, multiview],1)
+            point_cloud = np.concatenate([point_cloud, multiview], 1)
 
         if self.use_height:
-            floor_height = np.percentile(point_cloud[:,2],0.99)
-            height = point_cloud[:,2] - floor_height
-            point_cloud = np.concatenate([point_cloud, np.expand_dims(height, 1)],1) 
-            
-        # ------------------------------- LABELS ------------------------------        
+            floor_height = np.percentile(point_cloud[:, 2], 0.99)
+            height = point_cloud[:, 2] - floor_height
+            point_cloud = np.concatenate([point_cloud, np.expand_dims(height, 1)], 1)
+
+            # ------------------------------- LABELS ------------------------------
         target_bboxes = np.zeros((MAX_NUM_OBJ, 6))
-        target_bboxes_mask = np.zeros((MAX_NUM_OBJ))    
+        target_bboxes_mask = np.zeros((MAX_NUM_OBJ))
         angle_classes = np.zeros((MAX_NUM_OBJ,))
         angle_residuals = np.zeros((MAX_NUM_OBJ,))
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
-        ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
+        ref_box_label = np.zeros(MAX_NUM_OBJ)  # bbox label for reference target
 
         complete_point_cloud = point_cloud
         point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
         instance_labels = instance_labels[choices]
         semantic_labels = semantic_labels[choices]
         pcl_color = pcl_color[choices]
-        
+
         num_bbox = instance_bboxes.shape[0] if instance_bboxes.shape[0] < MAX_NUM_OBJ else MAX_NUM_OBJ
         target_bboxes_mask[0:num_bbox] = 1
-        target_bboxes[0:num_bbox,:] = instance_bboxes[:MAX_NUM_OBJ,0:6]
-        
+        target_bboxes[0:num_bbox, :] = instance_bboxes[:MAX_NUM_OBJ, 0:6]
+
         # ------------------------------- DATA AUGMENTATION ------------------------------        
         if self.augment and not self.debug:
             if np.random.random() > 0.5:
                 # Flipping along the YZ plane
-                point_cloud[:,0] = -1 * point_cloud[:,0]
-                target_bboxes[:,0] = -1 * target_bboxes[:,0]                
-                
+                point_cloud[:, 0] = -1 * point_cloud[:, 0]
+                target_bboxes[:, 0] = -1 * target_bboxes[:, 0]
+
             if np.random.random() > 0.5:
                 # Flipping along the XZ plane
-                point_cloud[:,1] = -1 * point_cloud[:,1]
-                target_bboxes[:,1] = -1 * target_bboxes[:,1]                                
+                point_cloud[:, 1] = -1 * point_cloud[:, 1]
+                target_bboxes[:, 1] = -1 * target_bboxes[:, 1]
 
-            # Rotation along X-axis
-            rot_angle = (np.random.random()*np.pi/18) - np.pi/36 # -5 ~ +5 degree
+                # Rotation along X-axis
+            rot_angle = (np.random.random() * np.pi / 18) - np.pi / 36  # -5 ~ +5 degree
             rot_mat = rotx(rot_angle)
-            point_cloud[:,0:3] = np.dot(point_cloud[:,0:3], np.transpose(rot_mat))
+            point_cloud[:, 0:3] = np.dot(point_cloud[:, 0:3], np.transpose(rot_mat))
             target_bboxes = rotate_aligned_boxes_along_axis(target_bboxes, rot_mat, "x")
 
             # Rotation along Y-axis
-            rot_angle = (np.random.random()*np.pi/18) - np.pi/36 # -5 ~ +5 degree
+            rot_angle = (np.random.random() * np.pi / 18) - np.pi / 36  # -5 ~ +5 degree
             rot_mat = roty(rot_angle)
-            point_cloud[:,0:3] = np.dot(point_cloud[:,0:3], np.transpose(rot_mat))
+            point_cloud[:, 0:3] = np.dot(point_cloud[:, 0:3], np.transpose(rot_mat))
             target_bboxes = rotate_aligned_boxes_along_axis(target_bboxes, rot_mat, "y")
 
             # Rotation along up-axis/Z-axis
-            rot_angle = (np.random.random()*np.pi/18) - np.pi/36 # -5 ~ +5 degree
+            rot_angle = (np.random.random() * np.pi / 18) - np.pi / 36  # -5 ~ +5 degree
             rot_mat = rotz(rot_angle)
-            point_cloud[:,0:3] = np.dot(point_cloud[:,0:3], np.transpose(rot_mat))
+            point_cloud[:, 0:3] = np.dot(point_cloud[:, 0:3], np.transpose(rot_mat))
             target_bboxes = rotate_aligned_boxes_along_axis(target_bboxes, rot_mat, "z")
 
             # Translation
@@ -166,26 +168,26 @@ class ScannetReferenceDataset(Dataset):
         # from the points sharing the same instance label. 
         point_votes = np.zeros([self.num_points, 3])
         point_votes_mask = np.zeros(self.num_points)
-        for i_instance in np.unique(instance_labels):            
+        for i_instance in np.unique(instance_labels):
             # find all points belong to that instance
             ind = np.where(instance_labels == i_instance)[0]
             # find the semantic label            
             if semantic_labels[ind[0]] in DC.nyu40ids:
-                x = point_cloud[ind,:3]
-                center = 0.5*(x.min(0) + x.max(0))
+                x = point_cloud[ind, :3]
+                center = 0.5 * (x.min(0) + x.max(0))
                 point_votes[ind, :] = center - x
                 point_votes_mask[ind] = 1.0
-        point_votes = np.tile(point_votes, (1, 3)) # make 3 votes identical 
-        
-        class_ind = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:num_bbox,-2]]
+        point_votes = np.tile(point_votes, (1, 3))  # make 3 votes identical
+
+        class_ind = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:num_bbox, -2]]
         # NOTE: set size class as semantic class. Consider use size2class.
         size_classes[0:num_bbox] = class_ind
         size_residuals[0:num_bbox, :] = \
-            target_bboxes[0:num_bbox, 3:6] - DC.mean_size_arr[class_ind,:]
+            target_bboxes[0:num_bbox, 3:6] - DC.mean_size_arr[class_ind, :]
 
         # construct the reference target label for each bbox
         ref_box_label = np.zeros(MAX_NUM_OBJ)
-        for i, gt_id in enumerate(instance_bboxes[:num_bbox,-1]):
+        for i, gt_id in enumerate(instance_bboxes[:num_bbox, -1]):
             if gt_id == object_id:
                 ref_box_label[i] = 1
                 ref_center_label = target_bboxes[i, 0:3]
@@ -193,9 +195,9 @@ class ScannetReferenceDataset(Dataset):
                 ref_heading_residual_label = angle_residuals[i]
                 ref_size_class_label = size_classes[i]
                 ref_size_residual_label = size_residuals[i]
-            
+
         data_dict = {}
-        data_dict["point_clouds"] = point_cloud.astype(np.float32) # point cloud data including features
+        data_dict["point_clouds"] = point_cloud.astype(np.float32)  # point cloud data including features
         data_dict["lang_feat"] = lang_feat.astype(np.float32)  # language feature vectors
         data_dict["lang_len"] = np.array(lang_len).astype(np.int64)  # length of each description
         data_dict["center_label"] = target_bboxes.astype(np.float32)[:, 0:3]  # (MAX_NUM_OBJ, 3) for GT box center XYZ
@@ -233,7 +235,7 @@ class ScannetReferenceDataset(Dataset):
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(xyz)
         pcd.colors = o3d.utility.Vector3dVector(color)
-        #o3d.visualization.draw_geometries([pcd])
+        # o3d.visualization.draw_geometries([pcd])
 
         bbox_count = data_dict["center_label"].shape[0]
         objects_num_points = []
@@ -246,8 +248,8 @@ class ScannetReferenceDataset(Dataset):
             bbox_size_residual = data_dict["size_residual_label"][i]
 
             obb = DC.param2obb(bbox_center, bbox_heading_class,
-                                        bbox_heading_residual,
-                                        bbox_size_class, bbox_size_residual)
+                               bbox_heading_residual,
+                               bbox_size_class, bbox_size_residual)
             bbox = get_3d_box(obb[3:6], obb[6], obb[0:3])
             vol = o3d.visualization.SelectionPolygonVolume()
             vol.bounding_polygon = o3d.utility.Vector3dVector(bbox)
@@ -255,10 +257,13 @@ class ScannetReferenceDataset(Dataset):
             vol.axis_max = np.max(xyz)
             vol.axis_min = np.min(xyz)
             cropped = vol.crop_point_cloud(pcd)
-            #o3d.visualization.draw_geometries([cropped])
+            # o3d.visualization.draw_geometries([cropped])
             object_points = np.asarray(cropped.points)
             objects_num_points.append(object_points.shape[0])
             object_colors = np.asarray(cropped.colors)
+            if object_points.shape[0] == 0:
+                object_points = [[0, 0, 0]]
+                object_colors = [[0, 0, 0]]
             obj_pc = np.concatenate((object_points, object_colors), axis=1)
             obj_pc = random_sampling(obj_pc, MAX_OBJ_POINTS)
             objects.append(obj_pc)
@@ -266,7 +271,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["gt_objects"] = np.array(objects).astype(np.float32)
 
         return data_dict
-    
+
     def _get_raw2label(self):
         # mapping
         scannet_labels = DC.type2class.keys()
@@ -322,7 +327,6 @@ class ScannetReferenceDataset(Dataset):
 
         return lang
 
-
     def _load_data(self):
         print("loading data...")
         # load language features
@@ -335,10 +339,14 @@ class ScannetReferenceDataset(Dataset):
         self.scene_data = {}
         for scene_id in self.scene_list:
             self.scene_data[scene_id] = {}
-            self.scene_data[scene_id]["mesh_vertices"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_vert.npy")
-            self.scene_data[scene_id]["instance_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_ins_label.npy")
-            self.scene_data[scene_id]["semantic_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_sem_label.npy")
-            self.scene_data[scene_id]["instance_bboxes"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_bbox.npy")
+            self.scene_data[scene_id]["mesh_vertices"] = np.load(
+                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_vert.npy")
+            self.scene_data[scene_id]["instance_labels"] = np.load(
+                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_ins_label.npy")
+            self.scene_data[scene_id]["semantic_labels"] = np.load(
+                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_sem_label.npy")
+            self.scene_data[scene_id]["instance_bboxes"] = np.load(
+                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_bbox.npy")
 
         # # load multiview database
         # if self.use_multiview:
@@ -367,7 +375,7 @@ class ScannetReferenceDataset(Dataset):
         y_factor = np.random.choice(np.arange(-0.5, 0.501, 0.001), size=1)[0]
         z_factor = np.random.choice(np.arange(-0.5, 0.501, 0.001), size=1)[0]
         factor = [x_factor, y_factor, z_factor]
-        
+
         # dump
         coords += factor
         point_set[:, :3] = coords

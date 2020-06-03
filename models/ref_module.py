@@ -102,7 +102,7 @@ class RefModule(nn.Module):
         self.bn1 = nn.BatchNorm1d(128)
         self.bn2 = nn.BatchNorm1d(128)
 
-    def forward(self, xyz, features, data_dict):
+    def forward(self, features, data_dict):
         """
         Args:
             xyz: (B,K,3)
@@ -112,19 +112,19 @@ class RefModule(nn.Module):
         """
 
         # Farthest point sampling (FPS) on votes
-        xyz, features, fps_inds = self.vote_aggregation(xyz, features)
-        sample_inds = fps_inds
+        #xyz, features, fps_inds = self.vote_aggregation(xyz, features)
+        #sample_inds = fps_inds
 
-        data_dict['aggregated_vote_xyz'] = xyz # (batch_size, num_proposal, 3)
-        data_dict['aggregated_vote_features'] = features.permute(0, 2, 1).contiguous() # (batch_size, num_proposal, 128)
-        data_dict['aggregated_vote_inds'] = sample_inds # (batch_size, num_proposal,) # should be 0,1,2,...,num_proposal
+        #data_dict['aggregated_vote_xyz'] = xyz # (batch_size, num_proposal, 3)
+        #data_dict['aggregated_vote_features'] = features.permute(0, 2, 1).contiguous() # (batch_size, num_proposal, 128)
+        #data_dict['aggregated_vote_inds'] = sample_inds # (batch_size, num_proposal,) # should be 0,1,2,...,num_proposal
 
         # --------- PROPOSAL GENERATION ---------
-        net = F.relu(self.bn1(self.conv1(features))) 
-        net = F.relu(self.bn2(self.conv2(net))) 
-        net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
+        #net = F.relu(self.bn1(self.conv1(features)))
+        #net = F.relu(self.bn2(self.conv2(net)))
+        #net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
 
-        data_dict = decode_scores(net, data_dict, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr)
+        #data_dict = decode_scores(net, data_dict, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr)
 
         # --------- FEATURE FUSION ---------
         lang_feat = data_dict["lang_feat"]
@@ -140,10 +140,12 @@ class RefModule(nn.Module):
             data_dict["lang_scores"] = self.lang_cls(lang_feat[:, :, 0])
         
         # fuse
-        features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
+        features = self.feat_fuse(torch.cat([torch.from_numpy(features).float().cuda(), lang_feat], dim=1))
+
+        objectness_scores = data_dict['box_label_mask']
 
         # --------- REFERENCE PREDICTION ---------
-        masked_features = features * data_dict['objectness_scores'].max(2)[1].float().unsqueeze(1).repeat(1, 128, 1)
+        masked_features = features * objectness_scores.unsqueeze(1).repeat(1,128,1)
         
         data_dict['cluster_ref'] = self.conv4(masked_features).squeeze(1)
         

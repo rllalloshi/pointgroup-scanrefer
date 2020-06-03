@@ -26,10 +26,10 @@ class RefNet(nn.Module):
         self.use_lang_classifier=use_lang_classifier
 
         # Backbone point feature learning
-        self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim)
+        self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim-1)
 
         # Hough voting
-        self.vgen = VotingModule(self.vote_factor, 256)
+        # self.vgen = VotingModule(self.vote_factor, 256)
 
         # Vote aggregation, detection and language reference
         self.rfnet = RefModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, use_lang_classifier)
@@ -53,23 +53,36 @@ class RefNet(nn.Module):
             end_points: dict
         """
 
-        batch_size = data_dict["point_clouds"].shape[0]
+        ptcloud = data_dict["point_clouds"]
+        pointcloud_objects = data_dict["gt_objects"]
 
-        data_dict = self.backbone_net(data_dict)
+        batch_size = pointcloud_objects.shape[0]
+
+        batch_features = np.zeros((batch_size, 128, 128))
+        for i in range(batch_size):
+            xyz, features = self.backbone_net._break_up_pc(pointcloud_objects[i])
+            data_dict['xyz_gt'] = xyz
+            data_dict['features_gt'] = features
+            data_dict = self.backbone_net(data_dict)
+            features = data_dict["fp2_features"].detach().cpu().numpy()
+            features = np.resize(features, (features.shape[0], features.shape[1]))
+            batch_features[i] = features
+        data_dict = self.rfnet(batch_features, data_dict)
+
+
                 
         # --------- HOUGH VOTING ---------
-        xyz = data_dict["fp2_xyz"]
-        features = data_dict["fp2_features"]
-        data_dict["seed_inds"] = data_dict["fp2_inds"]
-        data_dict["seed_xyz"] = xyz
-        data_dict["seed_features"] = features
-        
-        xyz, features = self.vgen(xyz, features)
-        features_norm = torch.norm(features, p=2, dim=1)
-        features = features.div(features_norm.unsqueeze(1))
-        data_dict["vote_xyz"] = xyz
-        data_dict["vote_features"] = features
 
-        data_dict = self.rfnet(xyz, features, data_dict)
+        # data_dict["seed_inds"] = data_dict["fp2_inds"]
+        # data_dict["seed_xyz"] = xyz
+        # data_dict["seed_features"] = features
+        #
+        # xyz, features = self.vgen(xyz, features)
+        # features_norm = torch.norm(features, p=2, dim=1)
+        # features = features.div(features_norm.unsqueeze(1))
+        # data_dict["vote_xyz"] = xyz
+        # data_dict["vote_features"] = features
+
+
 
         return data_dict
