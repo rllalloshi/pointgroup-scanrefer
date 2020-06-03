@@ -3,6 +3,8 @@ data/ScanRefer*
 data/glove*
 data/scannet/scannet_data
 data/scannet/scans
+data/scannet/scans_test
+data/scannet/scannetv2-labels.combined.tsv
 
 # cache
 data/scannet/__pycache__
@@ -10,6 +12,12 @@ lib/__pycache__
 lib/pointnet2/__pycache__
 models/__pycache__
 utils/__pycache__
+
+.idea
+
+download-scannet.py
+
+stats
 
 # pointnet2
 lib/pointnet2/build/
