@@ -57,14 +57,14 @@ class RefModule(nn.Module):
         self.seed_feat_dim = seed_feat_dim
 
         # Vote clustering
-        self.vote_aggregation = PointnetSAModuleVotes( 
+        '''self.vote_aggregation = PointnetSAModuleVotes( 
             npoint=self.num_proposal,
             radius=0.3,
             nsample=16,
             mlp=[self.seed_feat_dim, 128, 128, 128],
             use_xyz=True,
             normalize_xyz=True
-        )
+        )'''
 
         # --------- FEATURE FUSION ---------
         self.gru = nn.GRU(
@@ -91,16 +91,16 @@ class RefModule(nn.Module):
         # Object proposal/detection
         # Objectness scores (2), center residual (3),
         # heading class+residual (num_heading_bin*2), size class+residual(num_size_cluster*4)
-        self.conv1 = nn.Conv1d(128,128,1)
-        self.conv2 = nn.Conv1d(128,128,1)
-        self.conv3 = nn.Conv1d(128,2+3+num_heading_bin*2+num_size_cluster*4+self.num_class,1)
+        #self.conv1 = nn.Conv1d(128,128,1)
+        #self.conv2 = nn.Conv1d(128,128,1)
+        #self.conv3 = nn.Conv1d(128,2+3+num_heading_bin*2+num_size_cluster*4+self.num_class,1)
         self.conv4 = nn.Sequential(
             nn.Conv1d(128,1,1),
             nn.Dropout()
         )
         
-        self.bn1 = nn.BatchNorm1d(128)
-        self.bn2 = nn.BatchNorm1d(128)
+        #self.bn1 = nn.BatchNorm1d(128)
+        #self.bn2 = nn.BatchNorm1d(128)
 
     def forward(self, features, data_dict):
         """
