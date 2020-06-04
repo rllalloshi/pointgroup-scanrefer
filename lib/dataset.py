@@ -218,7 +218,6 @@ class ScannetReferenceDataset(Dataset):
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64)  # 0/1 reference labels for each object bbox
-        data_dict["ref_box_label"] = ref_box_label.astype(np.int64)  # 0/1 reference labels for each object bbox
         data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
         data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
         data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)

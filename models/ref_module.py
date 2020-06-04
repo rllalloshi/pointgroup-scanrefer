@@ -143,6 +143,7 @@ class RefModule(nn.Module):
         features = self.feat_fuse(torch.cat([torch.from_numpy(features).float().cuda(), lang_feat], dim=1))
 
         objectness_scores = data_dict['box_label_mask']
+        data_dict['objectness_scores'] = objectness_scores
 
         # --------- REFERENCE PREDICTION ---------
         masked_features = features * objectness_scores.unsqueeze(1).repeat(1,128,1)
