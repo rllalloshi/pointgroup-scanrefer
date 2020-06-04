@@ -303,19 +303,9 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
         data_dict["ref_acc"] = ref_acc.cpu().numpy().tolist()
 
         # compute localization metrics
-        '''
-        pred_ref = torch.argmax(data_dict['cluster_ref'] * data_dict['pred_mask'], 1).detach().cpu().numpy() # (B,)
-        pred_center = data_dict['center'].detach().cpu().numpy() # (B,K,3)
-        pred_heading_class = torch.argmax(data_dict['heading_scores'], -1) # B,num_proposal
-        pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
-        pred_heading_class = pred_heading_class.detach().cpu().numpy() # B,num_proposal
-        pred_heading_residual = pred_heading_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal
-        pred_size_class = torch.argmax(data_dict['size_scores'], -1) # B,num_proposal
-        pred_size_residual = torch.gather(data_dict['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
-        pred_size_class = pred_size_class.detach().cpu().numpy()
-        pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal,3
-        '''
-        '''
+
+        pred_ref = torch.argmax(data_dict['cluster_ref'] * data_dict['objectness_scores'], 1).detach().cpu().numpy() # (B,)
+
         gt_ref = torch.argmax(data_dict["ref_box_label"], 1).detach().cpu().numpy()
         gt_center = data_dict['center_label'].cpu().numpy() # (B,MAX_NUM_OBJ,3)
         gt_heading_class = data_dict['heading_class_label'].cpu().numpy() # B,K2
@@ -328,8 +318,8 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
         for i in range(pred_ref.shape[0]):
             # compute the iou
             pred_ref_idx, gt_ref_idx = pred_ref[i], gt_ref[i]
-            pred_obb = config.param2obb(pred_center[i, pred_ref_idx, 0:3], pred_heading_class[i, pred_ref_idx], pred_heading_residual[i, pred_ref_idx],
-                            pred_size_class[i, pred_ref_idx], pred_size_residual[i, pred_ref_idx])
+            pred_obb = config.param2obb(gt_center[i, pred_ref_idx, 0:3], gt_heading_class[i, pred_ref_idx], gt_heading_residual[i, pred_ref_idx],
+                            gt_size_class[i, pred_ref_idx], gt_size_residual[i, pred_ref_idx])
             gt_obb = config.param2obb(gt_center[i, gt_ref_idx, 0:3], gt_heading_class[i, gt_ref_idx], gt_heading_residual[i, gt_ref_idx],
                             gt_size_class[i, gt_ref_idx], gt_size_residual[i, gt_ref_idx])
             pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
@@ -339,6 +329,7 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
 
             # construct the multiple mask
             num_bbox = data_dict["num_bbox"][i]
+            '''
             sem_cls_label = data_dict["sem_cls_label"][i]
             sem_cls_label[num_bbox:] -= 1
             num_choices = torch.sum(data_dict["object_cat"][i] == sem_cls_label)
@@ -346,20 +337,21 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
                 multiple.append(1)
             else:
                 multiple.append(0)
+            '''
 
         # store
         data_dict["ref_iou"] = ious
         data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
         data_dict["ref_iou_rate_0.5"] = np.array(ious)[np.array(ious) >= 0.5].shape[0] / np.array(ious).shape[0]
-        data_dict["ref_multiple_mask"] = multiple
-        '''
+        #data_dict["ref_multiple_mask"] = multiple
+
     else:
         ref_loss = torch.zeros(1)[0].cuda()
         lang_loss = torch.zeros(1)[0].cuda()
 
     # Final loss function
     if use_max_iou:
-        loss = 0.1*ref_loss + lang_loss
+        loss = ref_loss + lang_loss
     else:    
         loss = 0.01*ref_loss + lang_loss
     
