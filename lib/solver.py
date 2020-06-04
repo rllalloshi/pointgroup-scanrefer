@@ -220,9 +220,9 @@ class Solver():
         # dump
         self._running_log["ref_loss"] = data_dict["ref_loss"]
         self._running_log["lang_loss"] = data_dict["lang_loss"]
-        self._running_log["objectness_loss"] = data_dict["objectness_loss"]
-        self._running_log["vote_loss"] = data_dict["vote_loss"]
-        self._running_log["box_loss"] = data_dict["box_loss"]
+        # self._running_log["objectness_loss"] = data_dict["objectness_loss"]
+        # self._running_log["vote_loss"] = data_dict["vote_loss"]
+        # self._running_log["box_loss"] = data_dict["box_loss"]
         self._running_log["loss"] = data_dict["loss"]
       
     def _feed(self, dataloader, phase, epoch_id):
@@ -281,17 +281,17 @@ class Solver():
             self.log[phase]["loss"].append(self._running_log["loss"].item())
             self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
             self.log[phase]["lang_loss"].append(self._running_log["lang_loss"].item())
-            self.log[phase]["objectness_loss"].append(self._running_log["objectness_loss"].item())
-            self.log[phase]["vote_loss"].append(self._running_log["vote_loss"].item())
-            self.log[phase]["box_loss"].append(self._running_log["box_loss"].item())
+            # self.log[phase]["objectness_loss"].append(self._running_log["objectness_loss"].item())
+            # self.log[phase]["vote_loss"].append(self._running_log["vote_loss"].item())
+            # self.log[phase]["box_loss"].append(self._running_log["box_loss"].item())
 
             self.log[phase]["lang_acc"].append(self._running_log["lang_acc"])
             self.log[phase]["ref_acc"].append(self._running_log["ref_acc"])
-            self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
-            self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
-            self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
-            self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
-            self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])                
+            # self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
+            # self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
+            # self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
+            # self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
+            # self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])
 
             # report
             if phase == "train":
@@ -304,13 +304,13 @@ class Solver():
                     self._train_report(epoch_id)
 
                 # evaluation
-                if self._global_iter_id % self.val_step == 0:
-                    print("evaluating...")
-                    # val
-                    self._feed(self.dataloader["val"], "val", epoch_id)
-                    self._dump_log("val")
-                    self._set_phase("train")
-                    self._epoch_report(epoch_id)
+                # if self._global_iter_id % self.val_step == 0:
+                #     print("evaluating...")
+                #     # val
+                #     self._feed(self.dataloader["val"], "val", epoch_id)
+                #     self._dump_log("val")
+                #     self._set_phase("train")
+                #     self._epoch_report(epoch_id)
 
                 # dump log
                 self._dump_log("train")
@@ -349,16 +349,20 @@ class Solver():
         # dump
         self._running_log["lang_acc"] = data_dict["lang_acc"].item()
         self._running_log["ref_acc"] = np.mean(data_dict["ref_acc"])
-        self._running_log["obj_acc"] = data_dict["obj_acc"].item()
-        self._running_log["pos_ratio"] = data_dict["pos_ratio"].item()
-        self._running_log["neg_ratio"] = data_dict["neg_ratio"].item()
-        self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
-        self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
+        # self._running_log["obj_acc"] = data_dict["obj_acc"].item()
+        # self._running_log["pos_ratio"] = data_dict["pos_ratio"].item()
+        # self._running_log["neg_ratio"] = data_dict["neg_ratio"].item()
+        # self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
+        # self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
 
     def _dump_log(self, phase):
         log = {
-            "loss": ["loss", "ref_loss", "lang_loss", "objectness_loss", "vote_loss", "box_loss"],
-            "score": ["lang_acc", "ref_acc", "obj_acc", "pos_ratio", "neg_ratio", "iou_rate_0.25", "iou_rate_0.5"]
+            "loss": ["loss", "ref_loss", "lang_loss",
+                     # "objectness_loss", "vote_loss", "box_loss"
+                     ],
+            "score": ["lang_acc", "ref_acc", "obj_acc",
+                      # "pos_ratio", "neg_ratio", "iou_rate_0.25", "iou_rate_0.5"
+                      ]
         }
         for key in log:
             for item in log[key]:
