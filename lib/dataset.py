@@ -75,6 +75,7 @@ class ScannetReferenceDataset(Dataset):
         instance_labels = self.scene_data[scene_id]["instance_labels"]
         semantic_labels = self.scene_data[scene_id]["semantic_labels"]
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
+        objects = self.scene_data[scene_id]["objects"]
 
         if not self.use_color:
             point_cloud = mesh_vertices[:,0:3] # do not use color for now
@@ -294,6 +295,8 @@ class ScannetReferenceDataset(Dataset):
             self.scene_data[scene_id]["instance_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_ins_label.npy")
             self.scene_data[scene_id]["semantic_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_sem_label.npy")
             self.scene_data[scene_id]["instance_bboxes"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_bbox.npy")
+            self.scene_data[scene_id]["objects"] = np.load(
+                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_objects.npy", allow_pickle=True)
 
         # # load multiview database
         # if self.use_multiview:
