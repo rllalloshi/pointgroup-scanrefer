@@ -13,19 +13,17 @@ import pickle
 import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
-import open3d as o3d
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
 from lib.config import CONF
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
-from utils.box_util import get_3d_box
 
 # data setting
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-MAX_OBJ_POINTS = 1000
+MAX_OBJ_POINTS = 700
 
 # data path
 SCANNET_V2_TSV = os.path.join(CONF.PATH.SCANNET_META, "scannetv2-labels.combined.tsv")
@@ -81,6 +79,7 @@ class ScannetReferenceDataset(Dataset):
         instance_labels = self.scene_data[scene_id]["instance_labels"]
         semantic_labels = self.scene_data[scene_id]["semantic_labels"]
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
+        objects = self.scene_data[scene_id]["objects"]
 
         if not self.use_color:
             point_cloud = mesh_vertices[:, 0:3]  # do not use color for now
@@ -229,45 +228,11 @@ class ScannetReferenceDataset(Dataset):
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
 
-        xyz = complete_point_cloud[:, 0:3]
-        color = complete_point_cloud[:, 3:6]
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(xyz)
-        pcd.colors = o3d.utility.Vector3dVector(color)
-        # o3d.visualization.draw_geometries([pcd])
+        objects_points = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 9))
+        for i in range(len(objects)):
+            objects_points[i] = random_sampling(objects[i], MAX_OBJ_POINTS)
 
-        bbox_count = data_dict["center_label"].shape[0]
-        objects_num_points = []
-        objects = []
-        for i in range(bbox_count):
-            bbox_center = data_dict["center_label"][i]
-            bbox_heading_class = data_dict['heading_class_label'][i]
-            bbox_heading_residual = data_dict["heading_residual_label"][i]
-            bbox_size_class = data_dict["size_class_label"][i]
-            bbox_size_residual = data_dict["size_residual_label"][i]
-
-            obb = DC.param2obb(bbox_center, bbox_heading_class,
-                               bbox_heading_residual,
-                               bbox_size_class, bbox_size_residual)
-            bbox = get_3d_box(obb[3:6], obb[6], obb[0:3])
-            vol = o3d.visualization.SelectionPolygonVolume()
-            vol.bounding_polygon = o3d.utility.Vector3dVector(bbox)
-            vol.orthogonal_axis = 'z'
-            vol.axis_max = np.max(xyz)
-            vol.axis_min = np.min(xyz)
-            cropped = vol.crop_point_cloud(pcd)
-            # o3d.visualization.draw_geometries([cropped])
-            object_points = np.asarray(cropped.points)
-            objects_num_points.append(object_points.shape[0])
-            object_colors = np.asarray(cropped.colors)
-            if object_points.shape[0] == 0:
-                object_points = [[0, 0, 0]]
-                object_colors = [[0, 0, 0]]
-            obj_pc = np.concatenate((object_points, object_colors), axis=1)
-            obj_pc = random_sampling(obj_pc, MAX_OBJ_POINTS)
-            objects.append(obj_pc)
-
-        data_dict["gt_objects"] = np.array(objects).astype(np.float32)
+        data_dict["gt_objects"] = np.array(objects_points).astype(np.float32)
 
         return data_dict
 
@@ -338,14 +303,12 @@ class ScannetReferenceDataset(Dataset):
         self.scene_data = {}
         for scene_id in self.scene_list:
             self.scene_data[scene_id] = {}
-            self.scene_data[scene_id]["mesh_vertices"] = np.load(
-                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_vert.npy")
-            self.scene_data[scene_id]["instance_labels"] = np.load(
-                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_ins_label.npy")
-            self.scene_data[scene_id]["semantic_labels"] = np.load(
-                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_sem_label.npy")
-            self.scene_data[scene_id]["instance_bboxes"] = np.load(
-                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_bbox.npy")
+            self.scene_data[scene_id]["mesh_vertices"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_vert.npy")
+            self.scene_data[scene_id]["instance_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_ins_label.npy")
+            self.scene_data[scene_id]["semantic_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_sem_label.npy")
+            self.scene_data[scene_id]["instance_bboxes"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_bbox.npy")
+            self.scene_data[scene_id]["objects"] = np.load(
+                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_objects.npy", allow_pickle=True)
 
         # # load multiview database
         # if self.use_multiview:
