@@ -210,8 +210,6 @@ class ScannetReferenceDataset(Dataset):
         target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:, -2][0:num_bbox]]
         data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64)  # (MAX_NUM_OBJ,) semantic class index
-        data_dict["box_label_mask"] = target_bboxes_mask.astype(
-            np.float32)  # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["vote_label"] = point_votes.astype(np.float32)
         data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
@@ -228,11 +226,14 @@ class ScannetReferenceDataset(Dataset):
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
 
+        box_label_mask = np.zeros((MAX_NUM_OBJ))
         objects_points = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 9))
         for i in range(len(objects)):
             objects_points[i] = random_sampling(objects[i], MAX_OBJ_POINTS)
+            box_label_mask[i] = 1
 
         data_dict["gt_objects"] = np.array(objects_points[:, :, 0:6]).astype(np.float32)
+        data_dict["box_label_mask"] = box_label_mask.astype(np.float32)
 
         return data_dict
 
