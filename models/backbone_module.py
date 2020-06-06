@@ -26,44 +26,41 @@ class Pointnet2Backbone(nn.Module):
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
         self.sa1 = PointnetSAModuleVotes(
-                npoint=200,
-                radius=0.2,
-                nsample=64,
-                mlp=[input_feature_dim, 32, 32, 64],
-                use_xyz=True,
-                normalize_xyz=True
-            )
-
+            npoint=256,
+            radius=0.2,
+            nsample=64,
+            mlp=[input_feature_dim, 16, 16, 32],
+            use_xyz=True,
+            normalize_xyz=True
+        )
         self.sa2 = PointnetSAModuleVotes(
-                npoint=1,
-                radius=0.4,
-                nsample=32,
-                mlp=[64, 64, 64, 128],
-                use_xyz=True,
-                normalize_xyz=True
-            )
-
+            npoint=128,
+            radius=0.4,
+            nsample=32,
+            mlp=[32, 32, 32, 64],
+            use_xyz=True,
+            normalize_xyz=True
+        )
         self.sa3 = PointnetSAModuleVotes(
-                npoint=60,
-                radius=0.8,
-                nsample=16,
-                mlp=[128, 64, 64, 128],
-                use_xyz=True,
-                normalize_xyz=True
-            )
-
+            npoint=64,
+            radius=0.8,
+            nsample=16,
+            mlp=[64, 32, 32, 64],
+            use_xyz=True,
+            normalize_xyz=True
+        )
         self.sa4 = PointnetSAModuleVotes(
-                npoint=40,
-                radius=1.2,
-                nsample=16,
-                mlp=[128, 64, 64, 128],
-                use_xyz=True,
-                normalize_xyz=True
-            )
+            npoint=1,
+            radius=1.2,
+            nsample=16,
+            mlp=[64, 32, 64, 128],
+            use_xyz=True,
+            normalize_xyz=True,
+        )
 
         # --------- 2 FEATURE UPSAMPLING LAYERS --------
-        self.fp1 = PointnetFPModule(mlp=[128+128,128,128])
-        self.fp2 = PointnetFPModule(mlp=[128+128,128,128])
+        #self.fp1 = PointnetFPModule(mlp=[128 + 128, 128, 128])
+        #self.fp2 = PointnetFPModule(mlp=[128 + 128, 128, 128])
 
     def _break_up_pc(self, pc):
         xyz = pc[..., :3].contiguous()
@@ -101,23 +98,29 @@ class Pointnet2Backbone(nn.Module):
         data_dict['sa1_inds'] = fps_inds
         data_dict['sa1_xyz'] = xyz
         data_dict['sa1_features'] = features
+        #print(features.shape)
 
         xyz, features, fps_inds = self.sa2(xyz, features) # this fps_inds is just 0,1,...,1023
         data_dict['sa2_inds'] = fps_inds
         data_dict['sa2_xyz'] = xyz
         data_dict['sa2_features'] = features
+        #print(features.shape)
 
         xyz, features, fps_inds = self.sa3(xyz, features) # this fps_inds is just 0,1,...,511
         data_dict['sa3_xyz'] = xyz
         data_dict['sa3_features'] = features
+        #print(features.shape)
 
         xyz, features, fps_inds = self.sa4(xyz, features) # this fps_inds is just 0,1,...,255
         data_dict['sa4_xyz'] = xyz
         data_dict['sa4_features'] = features
+        #print(features.shape)
 
         # --------- 2 FEATURE UPSAMPLING LAYERS --------
-        features = self.fp1(data_dict['sa3_xyz'], data_dict['sa4_xyz'], data_dict['sa3_features'], data_dict['sa4_features'])
-        features = self.fp2(data_dict['sa2_xyz'], data_dict['sa3_xyz'], data_dict['sa2_features'], features)
+        #features = self.fp1(data_dict['sa3_xyz'], data_dict['sa4_xyz'], data_dict['sa3_features'], data_dict['sa4_features'])
+        #print(features.shape)
+        #features = self.fp2(data_dict['sa2_xyz'], data_dict['sa3_xyz'], data_dict['sa2_features'], features)
+        #print(features.shape)
         data_dict['fp2_features'] = features
         data_dict['fp2_xyz'] = data_dict['sa2_xyz']
         num_seed = data_dict['fp2_xyz'].shape[1]
