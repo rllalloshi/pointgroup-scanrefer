@@ -232,7 +232,7 @@ class ScannetReferenceDataset(Dataset):
         for i in range(len(objects)):
             objects_points[i] = random_sampling(objects[i], MAX_OBJ_POINTS)
 
-        data_dict["gt_objects"] = np.array(objects_points).astype(np.float32)
+        data_dict["gt_objects"] = np.array(objects_points[:, :, 0:6]).astype(np.float32)
 
         return data_dict
 
