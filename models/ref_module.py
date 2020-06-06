@@ -23,9 +23,7 @@ def decode_scores(net, data_dict, num_class, num_heading_bin, num_size_cluster, 
     objectness_scores = net_transposed[:,:,0:2]
     data_dict['objectness_scores'] = objectness_scores
     
-    base_xyz = data_dict['aggregated_vote_xyz'] # (batch_size, num_proposal, 3)
-    center = base_xyz + net_transposed[:,:,2:5] # (batch_size, num_proposal, 3)
-    data_dict['center'] = center
+    data_dict['center'] = net_transposed[:,:,2:5]
 
     heading_scores = net_transposed[:,:,5:5+num_heading_bin]
     heading_residuals_normalized = net_transposed[:,:,5+num_heading_bin:5+num_heading_bin*2]
@@ -91,16 +89,16 @@ class RefModule(nn.Module):
         # Object proposal/detection
         # Objectness scores (2), center residual (3),
         # heading class+residual (num_heading_bin*2), size class+residual(num_size_cluster*4)
-        #self.conv1 = nn.Conv1d(128,128,1)
-        #self.conv2 = nn.Conv1d(128,128,1)
-        #self.conv3 = nn.Conv1d(128,2+3+num_heading_bin*2+num_size_cluster*4+self.num_class,1)
+        self.conv1 = nn.Conv1d(128,128,1)
+        self.conv2 = nn.Conv1d(128,128,1)
+        self.conv3 = nn.Conv1d(128,2+3+num_heading_bin*2+num_size_cluster*4+self.num_class,1)
         self.conv4 = nn.Sequential(
             nn.Conv1d(128,1,1),
             nn.Dropout()
         )
         
-        #self.bn1 = nn.BatchNorm1d(128)
-        #self.bn2 = nn.BatchNorm1d(128)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.bn2 = nn.BatchNorm1d(128)
 
     def forward(self, features, data_dict):
         """
@@ -118,13 +116,13 @@ class RefModule(nn.Module):
         #data_dict['aggregated_vote_xyz'] = xyz # (batch_size, num_proposal, 3)
         #data_dict['aggregated_vote_features'] = features.permute(0, 2, 1).contiguous() # (batch_size, num_proposal, 128)
         #data_dict['aggregated_vote_inds'] = sample_inds # (batch_size, num_proposal,) # should be 0,1,2,...,num_proposal
-
+        feature_tensor = torch.from_numpy(features).float().cuda()
         # --------- PROPOSAL GENERATION ---------
-        #net = F.relu(self.bn1(self.conv1(features)))
-        #net = F.relu(self.bn2(self.conv2(net)))
-        #net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
+        net = F.relu(self.bn1(self.conv1(feature_tensor)))
+        net = F.relu(self.bn2(self.conv2(net)))
+        net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
 
-        #data_dict = decode_scores(net, data_dict, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr)
+        data_dict = decode_scores(net, data_dict, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr)
 
         # --------- FEATURE FUSION ---------
         lang_feat = data_dict["lang_feat"]
@@ -140,13 +138,12 @@ class RefModule(nn.Module):
             data_dict["lang_scores"] = self.lang_cls(lang_feat[:, :, 0])
         
         # fuse
-        features = self.feat_fuse(torch.cat([torch.from_numpy(features).float().cuda(), lang_feat], dim=1))
-
-        objectness_scores = data_dict['box_label_mask']
-        data_dict['objectness_scores'] = objectness_scores
+        features = self.feat_fuse(torch.cat([feature_tensor, lang_feat], dim=1))
 
         # --------- REFERENCE PREDICTION ---------
-        masked_features = features * objectness_scores.unsqueeze(1).repeat(1,128,1)
+        masked_features = features * data_dict['objectness_scores'].max(2)[1].float().unsqueeze(1).repeat(1, 128, 1)
+
+        #masked_features = features * data_dict['box_label_mask'].unsqueeze(1).repeat(1,128,1)
         
         data_dict['cluster_ref'] = self.conv4(masked_features).squeeze(1)
         

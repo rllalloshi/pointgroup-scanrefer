@@ -122,9 +122,10 @@ class Pointnet2Backbone(nn.Module):
         #features = self.fp2(data_dict['sa2_xyz'], data_dict['sa3_xyz'], data_dict['sa2_features'], features)
         #print(features.shape)
         data_dict['fp2_features'] = features
-        data_dict['fp2_xyz'] = data_dict['sa2_xyz']
-        num_seed = data_dict['fp2_xyz'].shape[1]
-        data_dict['fp2_inds'] = data_dict['sa1_inds'][:,0:num_seed] # indices among the entire input point clouds
+        data_dict['fp2_xyz'] = data_dict['sa4_xyz']
+        print(features.requires_grad)
+        #num_seed = data_dict['fp2_xyz'].shape[1]
+        #data_dict['fp2_inds'] = data_dict['sa1_inds'][:,0:num_seed] # indices among the entire input point clouds
         return data_dict
 
 if __name__=='__main__':
