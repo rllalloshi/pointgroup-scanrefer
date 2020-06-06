@@ -10,7 +10,7 @@ import sys
 import os
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
-from utils.nn_distance import nn_distance, huber_loss
+from utils.nn_distance import nn_distance, huber_loss, nn_distance_same_sizes
 from lib.ap_helper import parse_predictions
 from lib.loss import SoftmaxRankingLoss
 from utils.box_util import get_3d_box, get_3d_box_batch, box3d_iou, box3d_iou_batch
@@ -44,29 +44,28 @@ def compute_vote_loss(data_dict):
 
     # Load ground truth votes and assign them to seed points
     batch_size = data_dict['seed_xyz'].shape[0]
-    num_seed = data_dict['seed_xyz'].shape[1] # B,num_seed,3
-    vote_xyz = data_dict['vote_xyz'] # B,num_seed*vote_factor,3
-    seed_inds = data_dict['seed_inds'].long() # B,num_seed in [0,num_points-1]
+    num_seed = 128# B,num_seed,3
+    # seed_inds = data_dict['seed_inds'].long() # B,num_seed in [0,num_points-1]
 
     # Get groundtruth votes for the seed points
     # vote_label_mask: Use gather to select B,num_seed from B,num_point
     #   non-object point has no GT vote mask = 0, object point has mask = 1
     # vote_label: Use gather to select B,num_seed,9 from B,num_point,9
     #   with inds in shape B,num_seed,9 and 9 = GT_VOTE_FACTOR * 3
-    seed_gt_votes_mask = torch.gather(data_dict['vote_label_mask'], 1, seed_inds)
-    seed_inds_expand = seed_inds.view(batch_size,num_seed,1).repeat(1,1,3*GT_VOTE_FACTOR)
-    seed_gt_votes = torch.gather(data_dict['vote_label'], 1, seed_inds_expand)
-    seed_gt_votes += data_dict['seed_xyz'].repeat(1,1,3)
+    # seed_inds_expand = seed_inds.view(batch_size,num_seed,1).repeat(1,1,3*GT_VOTE_FACTOR)
+    # seed_gt_votes = torch.gather(data_dict['vote_label'], 1, seed_inds_expand)
+    vote_loss=0
+    for i in range(batch_size):
+        seed_gt_votes = torch.from_numpy(data_dict['seed_xyz'][i]).cuda().float()
+        gt_center =data_dict['centers_objects'][i].cuda().float()
 
-    # Compute the min of min of distance
-    vote_xyz_reshape = vote_xyz.view(batch_size*num_seed, -1, 3) # from B,num_seed*vote_factor,3 to B*num_seed,vote_factor,3
-    seed_gt_votes_reshape = seed_gt_votes.view(batch_size*num_seed, GT_VOTE_FACTOR, 3) # from B,num_seed,3*GT_VOTE_FACTOR to B*num_seed,GT_VOTE_FACTOR,3
-    # A predicted vote to no where is not penalized as long as there is a good vote near the GT vote.
-    dist1, _, dist2, _ = nn_distance(vote_xyz_reshape, seed_gt_votes_reshape, l1=True)
-    votes_dist, _ = torch.min(dist2, dim=1) # (B*num_seed,vote_factor) to (B*num_seed,)
-    votes_dist = votes_dist.view(batch_size, num_seed)
-    vote_loss = torch.sum(votes_dist*seed_gt_votes_mask.float())/(torch.sum(seed_gt_votes_mask.float())+1e-6)
-    return vote_loss
+        # Compute the min of min of distance
+
+        # seed_gt_votes_reshape = seed_gt_votes.view(batch_size*num_seed, GT_VOTE_FACTOR, 3) # from B,num_seed,3*GT_VOTE_FACTOR to B*num_seed,GT_VOTE_FACTOR,3
+        # A predicted vote to no where is not penalized as long as there is a good vote near the GT vote.
+        dist =  torch.dist(gt_center, seed_gt_votes)
+        vote_loss =dist
+    return vote_loss/batch_size
 
 def compute_objectness_loss(data_dict):
     """ Compute objectness loss for the proposals.
@@ -236,8 +235,8 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     """
 
     # Vote loss
-    #vote_loss = compute_vote_loss(data_dict)
-    data_dict['vote_loss'] = 0
+    vote_loss = compute_vote_loss(data_dict)
+    data_dict['vote_loss'] = vote_loss
 
     # Obj loss
     objectness_loss, objectness_label, objectness_mask, object_assignment = compute_objectness_loss(data_dict)
@@ -351,9 +350,9 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
 
     # Final loss function
     if use_max_iou:
-        loss = ref_loss + lang_loss
+        loss = ref_loss + lang_loss + vote_loss
     else:    
-        loss = 0.01*ref_loss + lang_loss
+        loss = 0.01*ref_loss + lang_loss + vote_loss
     
     loss *= 10 # amplify
 

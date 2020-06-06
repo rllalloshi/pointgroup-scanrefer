@@ -59,14 +59,20 @@ class RefNet(nn.Module):
         batch_size = pointcloud_objects.shape[0]
 
         batch_features = np.zeros((batch_size, 128, 128))
+        batch_inds = np.zeros((batch_size, 128, 128))
+        batch_seed_xyz = np.zeros((batch_size, 128,  3))
         for i in range(batch_size):
             xyz, features = self.backbone_net._break_up_pc(pointcloud_objects[i])
             data_dict['xyz_gt'] = xyz
             data_dict['features_gt'] = features
             data_dict = self.backbone_net(data_dict)
             features = data_dict["fp2_features"].detach().cpu().numpy()
+            batch_inds[i] = data_dict["fp2_inds"].detach().cpu().numpy()
+            batch_seed_xyz[i] = data_dict['fp2_xyz'].squeeze(1).detach().cpu().numpy()
             features = np.resize(features, (features.shape[0], features.shape[1]))
             batch_features[i] = features
+        data_dict['seed_xyz'] = batch_seed_xyz
+        data_dict['seed_inds'] = batch_inds
         data_dict = self.rfnet(batch_features, data_dict)
 
 

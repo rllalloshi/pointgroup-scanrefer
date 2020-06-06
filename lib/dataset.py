@@ -204,7 +204,7 @@ class ScannetReferenceDataset(Dataset):
             np.int64)  # (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
         data_dict["heading_residual_label"] = angle_residuals.astype(np.float32)  # (MAX_NUM_OBJ,)
         data_dict["size_class_label"] = size_classes.astype(
-            np.int64)  # (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
+            np.int64)  # (MAX_NUM_OBJ,) with int values in  0,...,NUM_SIZE_CLUSTER
         data_dict["size_residual_label"] = size_residuals.astype(np.float32)  # (MAX_NUM_OBJ, 3)
         target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
         target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:, -2][0:num_bbox]]
@@ -229,9 +229,12 @@ class ScannetReferenceDataset(Dataset):
         data_dict["load_time"] = time.time() - start
 
         objects_points = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 9))
+        centers = np.zeros((MAX_NUM_OBJ, 3))
         for i in range(len(objects)):
             objects_points[i] = random_sampling(objects[i], MAX_OBJ_POINTS)
+            centers[i]= target_bboxes.astype(np.float32)[i, 0:3]
 
+        data_dict["centers_objects"] = centers.astype(np.float32)
         data_dict["gt_objects"] = np.array(objects_points[:, :, 0:6]).astype(np.float32)
 
         return data_dict

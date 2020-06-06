@@ -114,6 +114,7 @@ class Pointnet2Backbone(nn.Module):
         xyz, features, fps_inds = self.sa4(xyz, features) # this fps_inds is just 0,1,...,255
         data_dict['sa4_xyz'] = xyz
         data_dict['sa4_features'] = features
+        data_dict['sa4_inds'] = fps_inds
         #print(features.shape)
 
         # --------- 2 FEATURE UPSAMPLING LAYERS --------
@@ -122,7 +123,7 @@ class Pointnet2Backbone(nn.Module):
         #features = self.fp2(data_dict['sa2_xyz'], data_dict['sa3_xyz'], data_dict['sa2_features'], features)
         #print(features.shape)
         data_dict['fp2_features'] = features
-        data_dict['fp2_xyz'] = data_dict['sa2_xyz']
+        data_dict['fp2_xyz'] = data_dict['sa4_xyz']
         num_seed = data_dict['fp2_xyz'].shape[1]
         data_dict['fp2_inds'] = data_dict['sa1_inds'][:,0:num_seed] # indices among the entire input point clouds
         return data_dict
