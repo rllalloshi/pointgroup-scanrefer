@@ -150,39 +150,21 @@ def compute_box_and_sem_cls_loss(data_dict, config):
     return center_loss, heading_class_loss, heading_residual_normalized_loss, size_class_loss, size_residual_normalized_loss, sem_cls_loss
 
 def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max_iou=False):
-    """ Compute cluster reference loss
-
-    Args:
-        data_dict: dict (read-only)
-        use_lang_classifier: Boolean, whether the language classifier is applied here or not
-        use_max_iou: Boolean, whether marking the bbox with highest iou score as the only positive or not
-
-    Returns:
-        ref_loss, lang_loss, cluster_preds, cluster_labels
-    """
-
     # unpack
     cluster_preds = data_dict["cluster_ref"] # (B, num_proposal)
     object_assignment = data_dict["object_assignment"] # (B, num_proposal)
-    objectness_labels = data_dict['objectness_label'].float()
-
-    # select assigned reference boxes
-
     cluster_labels = data_dict["ref_box_label"] # (B, num_max_obj)
     cluster_labels = torch.gather(cluster_labels, 1, object_assignment) # (B, num_proposal)
-
     # reference loss
     REFERENCE_CLS_WEIGHTS = [0.01, 1] # put larger weights on positive reference
     criterion = SoftmaxRankingLoss(REFERENCE_CLS_WEIGHTS)
     ref_loss = criterion(cluster_preds, cluster_labels.float())
-
     # language loss
     if use_lang_classifier:
         criterion = torch.nn.CrossEntropyLoss()
         lang_loss = criterion(data_dict["lang_scores"], data_dict["object_cat"])
     else:
         lang_loss = torch.zeros(1)[0].cuda()
-
     return ref_loss, lang_loss, cluster_preds, cluster_labels
 
 def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_max_iou=False, post_processing=None):
@@ -199,8 +181,8 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     """
 
     # Vote loss
-    vote_loss = compute_vote_loss(data_dict)
-    data_dict['vote_loss'] = vote_loss
+    # vote_loss = compute_vote_loss(data_dict)
+    # data_dict['vote_loss'] = vote_loss
 
     # Obj loss
     objectness_loss, objectness_label, objectness_mask, object_assignment = compute_objectness_loss(data_dict)
@@ -224,6 +206,12 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + 0.1*size_cls_loss + size_reg_loss
     data_dict['box_loss'] = box_loss
     '''
+    print(f"sem_cls_label {data_dict['sem_cls_label'].shape}")
+    print(f"object_classifier {data_dict['object_classifier'].shape}")
+    obj_cls_loss_func= nn.CrossEntropyLoss()
+    labels = data_dict["sem_cls_label"].view(data_dict["sem_cls_label"].shape[0] * data_dict["sem_cls_label"].shape[1]).long()
+    logits = data_dict["object_classifier"].view(data_dict["object_classifier"].shape[0] * data_dict["object_classifier"].shape[1],data_dict["object_classifier"].shape[2] )
+    obj_cls_loss = obj_cls_loss_func(logits, labels)
 
     if reference:
         # Reference loss
@@ -328,9 +316,9 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
 
     # Final loss function
     if use_max_iou:
-        loss = ref_loss + lang_loss + vote_loss
+        loss = ref_loss + lang_loss + obj_cls_loss
     else:    
-        loss = 0.01*ref_loss + lang_loss + vote_loss
+        loss = 0.01*ref_loss + lang_loss + obj_cls_loss
     
     loss *= 10 # amplify
 

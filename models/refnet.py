@@ -27,6 +27,11 @@ class RefNet(nn.Module):
 
         # Backbone point feature learning
         self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim-1)
+        self.object_classifier = nn.Sequential(
+            nn.Linear(128, 256),
+            nn.ReLU(),
+            nn.Linear(256, num_class),
+        ).to(torch.device("cuda"))
 
         # Hough voting
         # self.vgen = VotingModule(self.vote_factor, 256)
@@ -73,6 +78,10 @@ class RefNet(nn.Module):
             batch_features[i] = features
         data_dict['seed_xyz'] = batch_seed_xyz
         data_dict['seed_inds'] = batch_inds
+
+        batch_feat_tens = torch.from_numpy(batch_features).cuda().float()
+        output_classifier = self.object_classifier.forward(batch_feat_tens.view(batch_feat_tens.shape[0] * batch_feat_tens.shape[1], batch_feat_tens.shape[2]))
+        data_dict['object_classifier'] = output_classifier.view(batch_feat_tens.shape[0],  batch_feat_tens.shape[1], self.num_class)
         data_dict = self.rfnet(batch_features, data_dict)
 
 
