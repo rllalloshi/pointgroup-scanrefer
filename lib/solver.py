@@ -283,13 +283,13 @@ class Solver():
                     self._train_report(epoch_id)
 
                 # evaluation
-                #if self._global_iter_id % self.val_step == 0:
-                    #print("evaluating...")
+                if self._global_iter_id % self.val_step == 0 and self._global_iter_id != 0:
+                    print("evaluating...")
                     # val
-                    #self._feed(self.dataloader["val"], "val", epoch_id)
-                    #self._dump_log("val")
-                    #self._set_phase("train")
-                    #self._epoch_report(epoch_id)
+                    self._feed(self.dataloader["val"], "val", epoch_id)
+                    self._dump_log("val")
+                    self._set_phase("train")
+                    self._epoch_report(epoch_id)
 
                 # dump log
                 self._dump_log("train")
