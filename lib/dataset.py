@@ -23,7 +23,7 @@ from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDataset
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-MAX_OBJ_POINTS = 700
+MAX_OBJ_POINTS = 1000
 
 # data path
 SCANNET_V2_TSV = os.path.join(CONF.PATH.SCANNET_META, "scannetv2-labels.combined.tsv")

@@ -200,13 +200,12 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
 
     # unpack
     cluster_preds = data_dict["cluster_ref"] # (B, num_proposal)
-    object_assignment = data_dict["object_assignment"] # (B, num_proposal)
+    #object_assignment = data_dict["object_assignment"] # (B, num_proposal)
     objectness_labels = data_dict['objectness_label'].float()
 
     # select assigned reference boxes
-
     cluster_labels = data_dict["ref_box_label"] # (B, num_max_obj)
-    cluster_labels = torch.gather(cluster_labels, 1, object_assignment) # (B, num_proposal)
+    #cluster_labels = torch.gather(cluster_labels, 1, object_assignment) # (B, num_proposal)
 
     # reference loss
     REFERENCE_CLS_WEIGHTS = [0.01, 1] # put larger weights on positive reference
@@ -268,35 +267,34 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
         data_dict["ref_loss"] = ref_loss
         data_dict["lang_loss"] = lang_loss
 
-        objectness_preds_batch = data_dict['objectness_scores']
-        objectness_labels_batch = objectness_label.long()
+        #objectness_preds_batch = data_dict['objectness_scores']
+        #objectness_labels_batch = objectness_label.long()
 
-        if post_processing:
-            _ = parse_predictions(data_dict, post_processing)
-            nms_masks = torch.LongTensor(data_dict['pred_mask']).cuda()
+        #if post_processing:
+         #   _ = parse_predictions(data_dict, post_processing)
+          #  nms_masks = torch.LongTensor(data_dict['pred_mask']).cuda()
 
             # construct valid mask
-            pred_masks = (nms_masks * objectness_preds_batch == 1).float()
-            label_masks = (objectness_labels_batch == 1).float()
-        else:
+           # pred_masks = (nms_masks * objectness_preds_batch == 1).float()
+            #label_masks = (objectness_labels_batch == 1).float()
+        #else:
             # construct valid mask
-            pred_masks = (objectness_preds_batch == 1).float()
-            label_masks = (objectness_labels_batch == 1).float()
+         #   pred_masks = (objectness_preds_batch == 1).float()
+          #  label_masks = (objectness_labels_batch == 1).float()
 
-        data_dict["pred_mask"] = pred_masks
-        data_dict["label_mask"] = label_masks
+        #data_dict["pred_mask"] = pred_masks
+        #data_dict["label_mask"] = label_masks
 
-        cluster_preds = torch.argmax(cluster_preds_scores * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
-        preds = torch.zeros(pred_masks.shape).cuda()
+        cluster_preds = torch.argmax(cluster_preds_scores, 1).long().unsqueeze(1).repeat(1, cluster_preds_scores.shape[1])
+        preds = torch.zeros(cluster_preds_scores.shape).cuda()
         preds = preds.scatter_(1, cluster_preds, 1)
         cluster_preds = preds
-        cluster_labels = cluster_labels.float()
-        cluster_labels *= label_masks
-        
+        #cluster_labels = cluster_labels.float()
+        #cluster_labels *= label_masks
+
         # compute classification scores
         corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
         labels = torch.ones(corrects.shape[0]).cuda()
-
         ref_acc = corrects / (labels + 1e-8)
         
         # store
@@ -304,7 +302,7 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
 
         # compute localization metrics
 
-        pred_ref = torch.argmax(data_dict['cluster_ref'] * data_dict['objectness_scores'], 1).detach().cpu().numpy() # (B,)
+        pred_ref = torch.argmax(data_dict['cluster_ref'], 1).detach().cpu().numpy() # (B,)
 
         gt_ref = torch.argmax(data_dict["ref_box_label"], 1).detach().cpu().numpy()
         gt_center = data_dict['center_label'].cpu().numpy() # (B,MAX_NUM_OBJ,3)

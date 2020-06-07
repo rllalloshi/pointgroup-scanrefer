@@ -146,9 +146,9 @@ class RefModule(nn.Module):
         data_dict['objectness_scores'] = objectness_scores
 
         # --------- REFERENCE PREDICTION ---------
-        masked_features = features * objectness_scores.unsqueeze(1).repeat(1,128,1)
+        #masked_features = features * objectness_scores.unsqueeze(1).repeat(1,128,1)
         
-        data_dict['cluster_ref'] = self.conv4(masked_features).squeeze(1)
+        data_dict['cluster_ref'] = self.conv4(features).squeeze(1)
         
         return data_dict
 

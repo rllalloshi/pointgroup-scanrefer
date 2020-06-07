@@ -29,7 +29,7 @@ class Pointnet2Backbone(nn.Module):
             npoint=256,
             radius=0.2,
             nsample=64,
-            mlp=[input_feature_dim, 16, 16, 32],
+            mlp=[input_feature_dim, 32, 32, 64],
             use_xyz=True,
             normalize_xyz=True
         )
@@ -37,7 +37,7 @@ class Pointnet2Backbone(nn.Module):
             npoint=128,
             radius=0.4,
             nsample=32,
-            mlp=[32, 32, 32, 64],
+            mlp=[64, 64, 64, 128],
             use_xyz=True,
             normalize_xyz=True
         )
@@ -45,7 +45,7 @@ class Pointnet2Backbone(nn.Module):
             npoint=64,
             radius=0.8,
             nsample=16,
-            mlp=[64, 32, 32, 64],
+            mlp=[128, 64, 64, 128],
             use_xyz=True,
             normalize_xyz=True
         )
@@ -53,7 +53,7 @@ class Pointnet2Backbone(nn.Module):
             npoint=1,
             radius=1.2,
             nsample=16,
-            mlp=[64, 32, 64, 128],
+            mlp=[128, 64, 64, 128],
             use_xyz=True,
             normalize_xyz=True,
         )
