@@ -324,22 +324,36 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
 
         data_dict["pred_mask"] = pred_masks
         data_dict["label_mask"] = label_masks
-
+        TOP_K = 5
         cluster_preds = torch.argmax(cluster_preds_scores * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
+        _, cluster_preds_top5 = torch.topk(cluster_preds_scores * pred_masks, TOP_K, 1)
         preds = torch.zeros(pred_masks.shape).cuda()
         preds = preds.scatter_(1, cluster_preds, 1)
         cluster_preds = preds
         cluster_labels = cluster_labels.float()
         cluster_labels *= label_masks
-        
+
         # compute classification scores
         corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
         labels = torch.ones(corrects.shape[0]).cuda()
-
         ref_acc = corrects / (labels + 1e-8)
-        
+
+        corrects_top5 = torch.zeros_like(corrects)
+        for i in range(TOP_K):
+            x= cluster_preds_top5[:, i]
+            cluster_preds_x = x.long().unsqueeze(1).repeat(1, pred_masks.shape[1])
+            preds_x = torch.zeros(pred_masks.shape).cuda()
+            preds_x = preds_x.scatter_(1, cluster_preds_x, 1)
+            cluster_preds = preds_x
+            cluster_labels = cluster_labels.float()
+            cluster_labels *= label_masks
+            corrects_top5 += torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
+            labels = torch.ones(corrects.shape[0]).cuda()
+        ref_acc_top5 = corrects_top5 / (labels + 1e-8)
+
         # store
         data_dict["ref_acc"] = ref_acc.cpu().numpy().tolist()
+        data_dict["ref_acc_top5"] = ref_acc_top5.cpu().numpy().tolist()
 
         # compute localization metrics
         pred_ref = torch.argmax(data_dict['cluster_ref'] * data_dict['pred_mask'], 1).detach().cpu().numpy() # (B,)

@@ -28,6 +28,7 @@ ITER_REPORT_TEMPLATE = """
 [loss] train_box_loss: {train_box_loss}
 [loss] train_lang_acc: {train_lang_acc}
 [sco.] train_ref_acc: {train_ref_acc}
+[sco.] train_ref_acc_top5: {train_ref_acc_top5}
 [sco.] train_obj_acc: {train_obj_acc}
 [sco.] train_pos_ratio: {train_pos_ratio}, train_neg_ratio: {train_neg_ratio}
 [sco.] train_iou_rate_0.25: {train_iou_rate_25}, train_iou_rate_0.5: {train_iou_rate_5}
@@ -49,6 +50,7 @@ EPOCH_REPORT_TEMPLATE = """
 [train] train_box_loss: {train_box_loss}
 [train] train_lang_acc: {train_lang_acc}
 [train] train_ref_acc: {train_ref_acc}
+[train] train_ref_acc_top5: {train_ref_acc_top5}
 [train] train_obj_acc: {train_obj_acc}
 [train] train_pos_ratio: {train_pos_ratio}, train_neg_ratio: {train_neg_ratio}
 [train] train_iou_rate_0.25: {train_iou_rate_25}, train_iou_rate_0.5: {train_iou_rate_5}
@@ -76,6 +78,7 @@ BEST_REPORT_TEMPLATE = """
 [loss] box_loss: {box_loss}
 [loss] lang_acc: {lang_acc}
 [sco.] ref_acc: {ref_acc}
+[sco.] ref_acc_top5: {ref_acc_top5}
 [sco.] obj_acc: {obj_acc}
 [sco.] pos_ratio: {pos_ratio}, neg_ratio: {neg_ratio}
 [sco.] iou_rate_0.25: {iou_rate_25}, iou_rate_0.5: {iou_rate_5}
@@ -132,6 +135,7 @@ class Solver():
                 # scores (float, not torch.cuda.FloatTensor)
                 "lang_acc": [],
                 "ref_acc": [],
+                "ref_acc_top5": [],
                 "obj_acc": [],
                 "pos_ratio": [],
                 "neg_ratio": [],
@@ -249,6 +253,7 @@ class Solver():
                 # acc
                 "lang_acc": 0,
                 "ref_acc": 0,
+                "ref_acc_top5": 0,
                 "obj_acc": 0,
                 "pos_ratio": 0,
                 "neg_ratio": 0,
@@ -287,6 +292,8 @@ class Solver():
 
             self.log[phase]["lang_acc"].append(self._running_log["lang_acc"])
             self.log[phase]["ref_acc"].append(self._running_log["ref_acc"])
+            rntop5=self._running_log["ref_acc_top5"]
+            self.log[phase]["ref_acc_top5"].append(rntop5)
             self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
             self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
             self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
@@ -304,13 +311,13 @@ class Solver():
                     self._train_report(epoch_id)
 
                 # evaluation
-                if self._global_iter_id % self.val_step == 0:
-                    print("evaluating...")
-                    # val
-                    self._feed(self.dataloader["val"], "val", epoch_id)
-                    self._dump_log("val")
-                    self._set_phase("train")
-                    self._epoch_report(epoch_id)
+                # if self._global_iter_id % self.val_step == 0:
+                #     print("evaluating...")
+                #     # val
+                #     self._feed(self.dataloader["val"], "val", epoch_id)
+                #     self._dump_log("val")
+                #     self._set_phase("train")
+                #     self._epoch_report(epoch_id)
 
                 # dump log
                 self._dump_log("train")
@@ -334,6 +341,7 @@ class Solver():
                 self.best["box_loss"] = np.mean(self.log[phase]["box_loss"])
                 self.best["lang_acc"] = np.mean(self.log[phase]["lang_acc"])
                 self.best["ref_acc"] = np.mean(self.log[phase]["ref_acc"])
+                self.best["ref_acc_top5"] = np.mean(self.log[phase]["ref_acc_top5"])
                 self.best["obj_acc"] = np.mean(self.log[phase]["obj_acc"])
                 self.best["pos_ratio"] = np.mean(self.log[phase]["pos_ratio"])
                 self.best["neg_ratio"] = np.mean(self.log[phase]["neg_ratio"])
@@ -349,6 +357,7 @@ class Solver():
         # dump
         self._running_log["lang_acc"] = data_dict["lang_acc"].item()
         self._running_log["ref_acc"] = np.mean(data_dict["ref_acc"])
+        self._running_log["ref_acc_top5"] = np.mean(data_dict["ref_acc_top5"])
         self._running_log["obj_acc"] = data_dict["obj_acc"].item()
         self._running_log["pos_ratio"] = data_dict["pos_ratio"].item()
         self._running_log["neg_ratio"] = data_dict["neg_ratio"].item()
@@ -358,7 +367,7 @@ class Solver():
     def _dump_log(self, phase):
         log = {
             "loss": ["loss", "ref_loss", "lang_loss", "objectness_loss", "vote_loss", "box_loss"],
-            "score": ["lang_acc", "ref_acc", "obj_acc", "pos_ratio", "neg_ratio", "iou_rate_0.25", "iou_rate_0.5"]
+            "score": ["lang_acc", "ref_acc", "ref_acc_top5", "obj_acc", "pos_ratio", "neg_ratio", "iou_rate_0.25", "iou_rate_0.5"]
         }
         for key in log:
             for item in log[key]:
@@ -408,6 +417,7 @@ class Solver():
             train_box_loss=round(np.mean([v for v in self.log["train"]["box_loss"]]), 5),
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
+            train_ref_acc_top5=round(np.mean([v for v in self.log["train"]["ref_acc_top5"]]), 5),
             train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
             train_pos_ratio=round(np.mean([v for v in self.log["train"]["pos_ratio"]]), 5),
             train_neg_ratio=round(np.mean([v for v in self.log["train"]["neg_ratio"]]), 5),
@@ -435,6 +445,7 @@ class Solver():
             train_box_loss=round(np.mean([v for v in self.log["train"]["box_loss"]]), 5),
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
+            train_ref_acc_top5=round(np.mean([v for v in self.log["train"]["ref_acc_top5"]]), 5),
             train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
             train_pos_ratio=round(np.mean([v for v in self.log["train"]["pos_ratio"]]), 5),
             train_neg_ratio=round(np.mean([v for v in self.log["train"]["neg_ratio"]]), 5),
@@ -468,6 +479,7 @@ class Solver():
             box_loss=round(self.best["box_loss"], 5),
             lang_acc=round(self.best["lang_acc"], 5),
             ref_acc=round(self.best["ref_acc"], 5),
+            ref_acc_top5=round(self.best["ref_acc_top5"], 5),
             obj_acc=round(self.best["obj_acc"], 5),
             pos_ratio=round(self.best["pos_ratio"], 5),
             neg_ratio=round(self.best["neg_ratio"], 5),
