@@ -22,47 +22,11 @@ OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8] # put larger weights on positive objectness
 NUM_PROPOSALS = 256 # TODO change this
 
 def compute_vote_loss(data_dict):
-    """ Compute vote loss: Match predicted votes to GT votes.
-
-    Args:
-        data_dict: dict (read-only)
-    
-    Returns:
-        vote_loss: scalar Tensor
-            
-    Overall idea:
-        If the seed point belongs to an object (votes_label_mask == 1),
-        then we require it to vote for the object center.
-
-        Each seed point may vote for multiple translations v1,v2,v3
-        A seed point may also be in the boxes of multiple objects:
-        o1,o2,o3 with corresponding GT votes c1,c2,c3
-
-        Then the loss for this seed point is:
-            min(d(v_i,c_j)) for i=1,2,3 and j=1,2,3
-    """
-
-    # Load ground truth votes and assign them to seed points
     batch_size = data_dict['seed_xyz'].shape[0]
-    num_seed = 128# B,num_seed,3
-    # seed_inds = data_dict['seed_inds'].long() # B,num_seed in [0,num_points-1]
-
-    # Get groundtruth votes for the seed points
-    # vote_label_mask: Use gather to select B,num_seed from B,num_point
-    #   non-object point has no GT vote mask = 0, object point has mask = 1
-    # vote_label: Use gather to select B,num_seed,9 from B,num_point,9
-    #   with inds in shape B,num_seed,9 and 9 = GT_VOTE_FACTOR * 3
-    # seed_inds_expand = seed_inds.view(batch_size,num_seed,1).repeat(1,1,3*GT_VOTE_FACTOR)
-    # seed_gt_votes = torch.gather(data_dict['vote_label'], 1, seed_inds_expand)
     vote_loss=0
     for i in range(batch_size):
         seed_gt_votes = torch.from_numpy(data_dict['seed_xyz'][i]).cuda().float()
         gt_center =data_dict['centers_objects'][i].cuda().float()
-
-        # Compute the min of min of distance
-
-        # seed_gt_votes_reshape = seed_gt_votes.view(batch_size*num_seed, GT_VOTE_FACTOR, 3) # from B,num_seed,3*GT_VOTE_FACTOR to B*num_seed,GT_VOTE_FACTOR,3
-        # A predicted vote to no where is not penalized as long as there is a good vote near the GT vote.
         dist =  torch.dist(gt_center, seed_gt_votes)
         vote_loss =dist
     return vote_loss/batch_size

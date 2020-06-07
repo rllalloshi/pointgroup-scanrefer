@@ -26,8 +26,6 @@ ITER_REPORT_TEMPLATE = """
 [loss] train_lang_acc: {train_lang_acc}
 [sco.] train_ref_acc: {train_ref_acc}
 [sco.] train_ref_acc_top5: {train_ref_acc_top5}
-[sco.] train_obj_acc: {train_obj_acc}
-[sco.] train_pos_ratio: {train_pos_ratio}, train_neg_ratio: {train_neg_ratio}
 [sco.] train_iou_rate_0.25: {train_iou_rate_25}, train_iou_rate_0.5: {train_iou_rate_5}
 [info] mean_fetch_time: {mean_fetch_time}s
 [info] mean_forward_time: {mean_forward_time}s
@@ -45,8 +43,6 @@ EPOCH_REPORT_TEMPLATE = """
 [train] train_lang_acc: {train_lang_acc}
 [train] train_ref_acc: {train_ref_acc}
 [train] train_ref_acc_top5: {train_ref_acc_top5}
-[train] train_obj_acc: {train_obj_acc}
-[train] train_pos_ratio: {train_pos_ratio}, train_neg_ratio: {train_neg_ratio}
 [train] train_iou_rate_0.25: {train_iou_rate_25}, train_iou_rate_0.5: {train_iou_rate_5}
 [val]   val_loss: {val_loss}
 [val]   val_ref_loss: {val_ref_loss}
@@ -64,8 +60,6 @@ BEST_REPORT_TEMPLATE = """
 [loss] lang_acc: {lang_acc}
 [sco.] ref_acc: {ref_acc}
 [sco.] ref_acc_top5: {ref_acc_top5}
-[sco.] obj_acc: {obj_acc}
-[sco.] pos_ratio: {pos_ratio}, neg_ratio: {neg_ratio}
 [sco.] iou_rate_0.25: {iou_rate_25}, iou_rate_0.5: {iou_rate_5}
 """
 
