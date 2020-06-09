@@ -14,6 +14,6 @@ def numpy_to_point_cloud(np_array, standardize_colors=True):
     return pcd
 
 
-def visualize_numpy_array(np_array):
-    pcd = numpy_to_point_cloud(np_array)
+def visualize_numpy_array(np_array, standardize_colors=True):
+    pcd = numpy_to_point_cloud(np_array, standardize_colors)
     o3d.visualization.draw_geometries([pcd])

@@ -19,6 +19,9 @@ from lib.config import CONF
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
 
+from lib.scene_objects_helper import read_scene_objects
+from lib.o3d_helper import visualize_numpy_array
+
 # data setting
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
@@ -79,7 +82,8 @@ class ScannetReferenceDataset(Dataset):
         instance_labels = self.scene_data[scene_id]["instance_labels"]
         semantic_labels = self.scene_data[scene_id]["semantic_labels"]
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
-        objects = self.scene_data[scene_id]["objects"]
+        scene_objects = self.scene_data[scene_id]["scene_objects"]
+
 
         if not self.use_color:
             point_cloud = mesh_vertices[:, 0:3]  # do not use color for now
@@ -226,14 +230,19 @@ class ScannetReferenceDataset(Dataset):
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
 
-        box_label_mask = np.zeros((MAX_NUM_OBJ))
-        objects_points = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 9))
-        for i in range(len(objects)):
-            objects_points[i] = random_sampling(objects[i], MAX_OBJ_POINTS)
-            box_label_mask[i] = 1
+        gt_scene_objects_mask = np.zeros((MAX_NUM_OBJ))
+        gt_scene_objects = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 6))
+        for i in range(len(scene_objects)):
+            scene_object = scene_objects[i]
+            new_scene_object = random_sampling(scene_object, MAX_OBJ_POINTS)
+            new_scene_object = new_scene_object[:, 0:6]
+            new_scene_object[:, 3:] = (new_scene_object[:, 3:] - MEAN_COLOR_RGB) / 256.0
+            #visualize_numpy_array(new_scene_object, False)
+            gt_scene_objects[i] = new_scene_object
+            gt_scene_objects_mask[i] = 1
 
-        data_dict["gt_objects"] = np.array(objects_points[:, :, 0:6]).astype(np.float32)
-        data_dict["box_label_mask"] = box_label_mask.astype(np.float32)
+        data_dict["gt_scene_objects"] = gt_scene_objects.astype(np.float32)
+        data_dict["gt_scene_objects_mask"] = gt_scene_objects_mask.astype(np.float32)
 
         return data_dict
 
@@ -308,8 +317,7 @@ class ScannetReferenceDataset(Dataset):
             self.scene_data[scene_id]["instance_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_ins_label.npy")
             self.scene_data[scene_id]["semantic_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_sem_label.npy")
             self.scene_data[scene_id]["instance_bboxes"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_bbox.npy")
-            self.scene_data[scene_id]["objects"] = np.load(
-                os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_objects.npy", allow_pickle=True)
+            self.scene_data[scene_id]["scene_objects"] = read_scene_objects(scene_id)
 
         # # load multiview database
         # if self.use_multiview:
