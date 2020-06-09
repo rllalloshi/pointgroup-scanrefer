@@ -53,14 +53,13 @@ class RefNet(nn.Module):
             end_points: dict
         """
 
-        ptcloud = data_dict["point_clouds"]
-        pointcloud_objects = data_dict["gt_objects"]
+        batch_scene_objects = data_dict["gt_scene_objects"]
 
-        batch_size = pointcloud_objects.shape[0]
+        batch_size = batch_scene_objects.shape[0]
 
         batch_features = np.zeros((batch_size, 128, 128))
         for i in range(batch_size):
-            xyz, features = self.backbone_net._break_up_pc(pointcloud_objects[i])
+            xyz, features = self.backbone_net._break_up_pc(batch_scene_objects[i])
             data_dict['xyz_gt'] = xyz
             data_dict['features_gt'] = features
             data_dict = self.backbone_net(data_dict)
@@ -68,8 +67,6 @@ class RefNet(nn.Module):
             features = np.resize(features, (features.shape[0], features.shape[1]))
             batch_features[i] = features
         data_dict = self.rfnet(batch_features, data_dict)
-
-
                 
         # --------- HOUGH VOTING ---------
 
