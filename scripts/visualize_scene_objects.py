@@ -1,27 +1,24 @@
 import argparse
 import numpy as np
 import os
-import open3d as o3d
 
 from lib.config import CONF
-
-
-def numpy_to_point_cloud(scene_object):
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(scene_object[:, 0:3])
-    pcd.colors = o3d.utility.Vector3dVector(scene_object[:, 3:6])
-    return pcd
+from lib.o3d_helper import visualize_numpy_array
 
 
 def visualize_scene_objects(scene_id):
-    print(scene_id)
-    scene_objects = np.load(
-        os.path.join(CONF.PATH.SCANNET_DATA, scene_id) + "_objects.npy", allow_pickle=True)
-    print(scene_objects.shape)
-    num_objects = scene_objects.shape[0]
-    for i in range(num_objects):
-        pcd = numpy_to_point_cloud(scene_objects[i])
-        o3d.visualization.draw_geometries([pcd])
+    scene_path = os.path.join(CONF.PATH.SCANNET_DATA, scene_id)
+    has_more_objects = True
+    object_number = 0
+    while has_more_objects:
+        try:
+            scene_object = np.load(
+                scene_path + "_object_" + str(object_number) + ".npy")
+            visualize_numpy_array(scene_object)
+            object_number = object_number + 1
+        except IOError:
+            has_more_objects = False
+
 
 
 if __name__ == "__main__":

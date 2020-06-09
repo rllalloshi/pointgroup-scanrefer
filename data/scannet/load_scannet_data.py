@@ -13,6 +13,8 @@ import pdb
 import numpy as np
 import scannet_utils
 
+from lib.o3d_helper import visualize_numpy_array
+
 def read_aggregation(filename):
     assert os.path.isfile(filename)
     object_id_to_segs = {}
@@ -89,13 +91,17 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
                 object_id_to_label_id[object_id] = label_ids[verts][0]
     # instance_bboxes = np.zeros((num_instances,7))
     instance_bboxes = np.zeros((num_instances,8)) # also include object id
-    objects_pc = []
+    scene_objects = []
+    #visualize_numpy_array(mesh_vertices)
     for obj_id in object_id_to_segs:
         label_id = object_id_to_label_id[obj_id]
-        obj_pc = mesh_vertices[instance_ids==obj_id, 0:3]
+        obj_pc = mesh_vertices[instance_ids == obj_id, 0:3]
         if len(obj_pc) == 0: continue
 
-        objects_pc.append(mesh_vertices[instance_ids==obj_id])
+        object_points = mesh_vertices[instance_ids == obj_id]
+        #visualize_numpy_array(object_points)
+        scene_objects.append(object_points)
+
         # Compute axis aligned box
         # An axis aligned bounding box is parameterized by
         # (cx,cy,cz) and (dx,dy,dz) and label id
@@ -112,13 +118,14 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
         instance_bboxes[obj_id-1,:] = bbox 
 
     if output_file is not None:
-        np.save(output_file + '_objects.npy', objects_pc)
+        for i in range(len(scene_objects)):
+            np.save(output_file + '_object_' + str(i) + '.npy', scene_objects[i])
         np.save(output_file+'_vert.npy', mesh_vertices)
         np.save(output_file+'_sem_label.npy', label_ids)
         np.save(output_file+'_ins_label.npy', instance_ids)
         np.save(output_file+'_bbox.npy', instance_bboxes)
 
-    return mesh_vertices, label_ids, instance_ids, instance_bboxes, object_id_to_label_id, objects_pc
+    return mesh_vertices, label_ids, instance_ids, instance_bboxes, object_id_to_label_id, scene_objects
 
 def main():
     parser = argparse.ArgumentParser()
