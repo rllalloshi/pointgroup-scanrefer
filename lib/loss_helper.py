@@ -49,8 +49,6 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     """
 
     # Compute object classification from features loss
-    print(f"sem_cls_label {data_dict['sem_cls_label'].shape}")
-    print(f"object_classifier {data_dict['object_classifier'].shape}")
     obj_cls_loss_func = nn.CrossEntropyLoss()
 
     labels = data_dict["sem_cls_label"].view(
