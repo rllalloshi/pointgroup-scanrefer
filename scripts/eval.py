@@ -111,50 +111,30 @@ def evaluate(args):
         _, data = get_loss(data, DC, True, True, POST_DICT)
 
         ref_acc += data["ref_acc"]
-        objectness_precisions += data["objectness_precision"]
-        objectness_recalls += data["objectness_recall"]
-        objectness_f1s += data["objectness_f1"]
         ious += data["ref_iou"]
-        masks += data["ref_multiple_mask"]
 
     # aggregate scores
     ref_acc = np.array(ref_acc)
-    objectness_precisions, objectness_recalls, objectness_f1s = np.array(objectness_precisions), np.array(objectness_recalls), np.array(objectness_f1s)
     ious = np.array(ious)
-    masks = np.array(masks)
 
-    stats = {
-        "unique": np.sum(masks == 0),
-        "multiple": np.sum(masks == 1),
-        "overall": masks.shape[0]
-    }
     scores = {
         "unique": {},
         "multiple": {},
         "overall": {}
     }
     scores["unique"]["ref_acc"] = np.mean(ref_acc[masks == 0]) if np.sum(masks == 0) > 0 else 0
-    scores["unique"]["objn_prec"] = np.mean(objectness_precisions[masks == 0]) if np.sum(masks == 0) > 0 else 0
-    scores["unique"]["objn_recall"] = np.mean(objectness_recalls[masks == 0]) if np.sum(masks == 0) > 0 else 0
-    scores["unique"]["objn_f1"] = np.mean(objectness_f1s[masks == 0]) if np.sum(masks == 0) > 0 else 0
     scores["unique"]["iou_rate_0.25"] = ious[masks == 0][ious[masks == 0] >= 0.25].shape[0] / ious[masks == 0].shape[0] if np.sum(masks == 0) > 0 else 0
     scores["unique"]["iou_rate_0.5"] = ious[masks == 0][ious[masks == 0] >= 0.5].shape[0] / ious[masks == 0].shape[0] if np.sum(masks == 0) > 0 else 0
     scores["multiple"]["ref_acc"] = np.mean(ref_acc[masks == 1]) if np.sum(masks == 1) > 0 else 0
-    scores["multiple"]["objn_prec"] = np.mean(objectness_precisions[masks == 1]) if np.sum(masks == 1) > 0 else 0
-    scores["multiple"]["objn_recall"] = np.mean(objectness_recalls[masks == 1]) if np.sum(masks == 1) > 0 else 0
-    scores["multiple"]["objn_f1"] = np.mean(objectness_f1s[masks == 1]) if np.sum(masks == 1) > 0 else 0
     scores["multiple"]["iou_rate_0.25"] = ious[masks == 1][ious[masks == 1] >= 0.25].shape[0] / ious[masks == 1].shape[0] if np.sum(masks == 1) > 0 else 0
     scores["multiple"]["iou_rate_0.5"] = ious[masks == 1][ious[masks == 1] >= 0.5].shape[0] / ious[masks == 1].shape[0] if np.sum(masks == 1) > 0 else 0
     scores["overall"]["ref_acc"] = np.mean(ref_acc)
-    scores["overall"]["objn_prec"] = np.mean(objectness_precisions)
-    scores["overall"]["objn_recall"] = np.mean(objectness_recalls)
-    scores["overall"]["objn_f1"] = np.mean(objectness_f1s)
     scores["overall"]["iou_rate_0.25"] = ious[ious >= 0.25].shape[0] / ious.shape[0]
     scores["overall"]["iou_rate_0.5"] = ious[ious >= 0.5].shape[0] / ious.shape[0]
 
     print("done!")
 
-    return stats, scores
+    return  scores
 
 
 if __name__ == "__main__":
@@ -163,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
     parser.add_argument("--batch_size", type=int, help="batch size", default=8)
     parser.add_argument('--num_points', type=int, default=40000, help='Point Number [default: 40000]')
-    parser.add_argument('--num_proposals', type=int, default=256, help='Proposal number [default: 256]')
+    parser.add_argument('--num_proposals', type=int, default=128, help='Proposal number [default: 256]')
     parser.add_argument('--num_scenes', type=int, default=-1, help='Number of scenes [default: -1]')
     parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
     parser.add_argument('--no_lang_cls', action='store_true', help='Do NOT use language classifier.')
@@ -177,12 +157,7 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-    stats, scores = evaluate(args)
-
-    # report
-    print("\nstats:")
-    for key in stats.keys():
-        print("{}:{}".format(key, stats[key]))
+    scores = evaluate(args)
 
     for key in scores.keys():
         print("\n{}:".format(key))
