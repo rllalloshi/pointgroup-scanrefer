@@ -198,8 +198,6 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     data_dict['pos_ratio'] = torch.sum(objectness_label.float().cuda())/float(total_num_proposal)
     data_dict['neg_ratio'] = torch.sum(objectness_mask.float())/float(total_num_proposal) - data_dict['pos_ratio']
 
-    print(f"sem_cls_label {data_dict['sem_cls_label'].shape}")
-    print(f"object_classifier {data_dict['object_classifier'].shape}")
     obj_cls_loss_func= nn.CrossEntropyLoss()
     labels = data_dict["sem_cls_label"].view(data_dict["sem_cls_label"].shape[0] * data_dict["sem_cls_label"].shape[1]).long()
     logits = data_dict["object_classifier"].view(data_dict["object_classifier"].shape[0] * data_dict["object_classifier"].shape[1],data_dict["object_classifier"].shape[2] )
