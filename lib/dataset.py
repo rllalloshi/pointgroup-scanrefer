@@ -26,7 +26,7 @@ from lib.o3d_helper import visualize_numpy_array
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-MAX_OBJ_POINTS = 1000
+MAX_OBJ_POINTS = 700
 
 # data path
 SCANNET_V2_TSV = os.path.join(CONF.PATH.SCANNET_META, "scannetv2-labels.combined.tsv")
@@ -246,7 +246,18 @@ class ScannetReferenceDataset(Dataset):
         data_dict["gt_scene_objects"] = gt_scene_objects.astype(np.float32)
         data_dict["gt_scene_objects_mask"] = gt_scene_objects_mask.astype(np.float32)
         data_dict["centers_objects"] = centers.astype(np.float32)
+        data_dict["sem_cls_label"] = data_dict["sem_cls_label"]
+
+        self.shuffle_objects(data_dict)
+
         return data_dict
+
+    def shuffle_objects(self, data_dict):
+        indices = np.random.permutation(data_dict["gt_scene_objects"].shape[0])
+        data_dict["gt_scene_objects"] = data_dict["gt_scene_objects"][indices]
+        data_dict["gt_scene_objects_mask"] = data_dict["gt_scene_objects_mask"][indices]
+        data_dict["centers_objects"] = data_dict["centers_objects"][indices]
+        data_dict["sem_cls_label"] = data_dict["sem_cls_label"][indices]
 
     def _get_raw2label(self):
         # mapping

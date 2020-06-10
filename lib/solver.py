@@ -17,7 +17,6 @@ from lib.config import CONF
 from lib.loss_helper import get_loss
 from utils.eta import decode_eta
 
-
 ITER_REPORT_TEMPLATE = """
 -------------------------------iter: [{epoch_id}: {iter_id}/{total_iter}]-------------------------------
 [loss] train_loss: {train_loss}

@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 
 class RefModule(nn.Module):
     def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, use_lang_classifier=True, seed_feat_dim=256):
-        super().__init__() 
+        super().__init__()
 
         self.num_class = num_class
         self.num_heading_bin = num_heading_bin
@@ -61,7 +61,7 @@ class RefModule(nn.Module):
         # --------- FEATURE FUSION ---------
         lang_feat = data_dict["lang_feat"]
         lang_feat = pack_padded_sequence(lang_feat, data_dict["lang_len"], batch_first=True, enforce_sorted=False)
-    
+
         # encode description
         _, lang_feat = self.gru(lang_feat)
         data_dict["lang_emb"] = lang_feat
@@ -72,7 +72,7 @@ class RefModule(nn.Module):
             data_dict["lang_scores"] = self.lang_cls(lang_feat[:, :, 0])
         
         # fuse
-        features = self.feat_fuse(torch.cat([torch.from_numpy(features).float().cuda(), lang_feat], dim=1))
+        features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
 
         objectness_scores = data_dict['gt_scene_objects_mask']
         data_dict['objectness_scores'] = objectness_scores

@@ -148,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-5)
     parser.add_argument('--num_points', type=int, default=40000, help='Point Number [default: 40000]')
-    parser.add_argument('--num_proposals', type=int, default=128, help='Proposal number [default: 256]')
+    parser.add_argument('--num_proposals', type=int, default=128, help='Proposal number [default: 128]')
     parser.add_argument('--num_scenes', type=int, default=-1, help='Number of scenes [default: -1]')
     parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
     parser.add_argument('--no_augment', action='store_true', help='Do NOT use height signal in input.')

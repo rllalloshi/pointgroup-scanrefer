@@ -47,10 +47,7 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
         loss: pytorch scalar tensor
         data_dict: dict
     """
-
     # Compute object classification from features loss
-    #print(f"sem_cls_label {data_dict['sem_cls_label'].shape}")
-    #print(f"object_classifier {data_dict['object_classifier'].shape}")
     obj_cls_loss_func = nn.CrossEntropyLoss()
 
     labels = data_dict["sem_cls_label"].view(
@@ -126,7 +123,7 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
     data_dict["ref_iou_rate_0.5"] = np.array(ious)[np.array(ious) >= 0.5].shape[0] / np.array(ious).shape[0]
 
-    loss = ref_loss + lang_loss + obj_cls_loss
+    loss = ref_loss + 2*lang_loss + 4*obj_cls_loss
     loss *= 10  # amplify
 
     data_dict['loss'] = loss

@@ -26,7 +26,7 @@ class Pointnet2Backbone(nn.Module):
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
         self.sa1 = PointnetSAModuleVotes(
-            npoint=256,
+            npoint=64,
             radius=0.2,
             nsample=64,
             mlp=[input_feature_dim, 32, 32, 64],
@@ -34,28 +34,20 @@ class Pointnet2Backbone(nn.Module):
             normalize_xyz=True
         )
         self.sa2 = PointnetSAModuleVotes(
-            npoint=128,
-            radius=0.4,
+            npoint=32,
+            radius=0.8,
             nsample=32,
             mlp=[64, 64, 64, 128],
             use_xyz=True,
             normalize_xyz=True
         )
         self.sa3 = PointnetSAModuleVotes(
-            npoint=64,
-            radius=0.8,
-            nsample=16,
-            mlp=[128, 64, 64, 128],
-            use_xyz=True,
-            normalize_xyz=True
-        )
-        self.sa4 = PointnetSAModuleVotes(
             npoint=1,
             radius=1.2,
             nsample=16,
             mlp=[128, 64, 64, 128],
             use_xyz=True,
-            normalize_xyz=True,
+            normalize_xyz=True
         )
 
     def _break_up_pc(self, pc):
