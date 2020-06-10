@@ -39,7 +39,6 @@ EPOCH_REPORT_TEMPLATE = """
 [train] train_lang_acc: {train_lang_acc}
 [train] train_ref_acc: {train_ref_acc}
 [val]   val_loss: {val_loss}
-[val]   val_ref_loss: {val_ref_loss}
 [val]   val_lang_loss: {val_lang_loss}
 [val]   val_lang_acc: {val_lang_acc}
 [val]   val_ref_acc: {val_ref_acc}
@@ -422,8 +421,8 @@ class Solver():
             #val_lang_acc=round(np.mean([v for v in self.log["val"]["lang_acc"]]), 5),
             val_ref_acc=round(np.mean([v for v in self.log["val"]["ref_acc"]]), 5),
             #val_obj_acc=round(np.mean([v for v in self.log["val"]["obj_acc"]]), 5),
-            val_pos_ratio=round(np.mean([v for v in self.log["val"]["pos_ratio"]]), 5),
-            val_neg_ratio=round(np.mean([v for v in self.log["val"]["neg_ratio"]]), 5),
+            # val_pos_ratio=round(np.mean([v for v in self.log["val"]["pos_ratio"]]), 5),
+            # val_neg_ratio=round(np.mean([v for v in self.log["val"]["neg_ratio"]]), 5),
             val_iou_rate_25=round(np.mean([v for v in self.log["val"]["iou_rate_0.25"]]), 5),
             val_iou_rate_5=round(np.mean([v for v in self.log["val"]["iou_rate_0.5"]]), 5),
         )

@@ -72,7 +72,7 @@ class RefModule(nn.Module):
             data_dict["lang_scores"] = self.lang_cls(lang_feat[:, :, 0])
         
         # fuse
-        features = self.feat_fuse(torch.cat([torch.from_numpy(features).float().cuda(), lang_feat], dim=1))
+        features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
 
         objectness_scores = data_dict['gt_scene_objects_mask']
         data_dict['objectness_scores'] = objectness_scores
