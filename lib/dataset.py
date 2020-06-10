@@ -208,7 +208,7 @@ class ScannetReferenceDataset(Dataset):
             np.int64)  # (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
         data_dict["heading_residual_label"] = angle_residuals.astype(np.float32)  # (MAX_NUM_OBJ,)
         data_dict["size_class_label"] = size_classes.astype(
-            np.int64)  # (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
+            np.int64)  # (MAX_NUM_OBJ,) with int values in  0,...,NUM_SIZE_CLUSTER
         data_dict["size_residual_label"] = size_residuals.astype(np.float32)  # (MAX_NUM_OBJ, 3)
         target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
         target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:, -2][0:num_bbox]]
@@ -232,18 +232,20 @@ class ScannetReferenceDataset(Dataset):
 
         gt_scene_objects_mask = np.zeros((MAX_NUM_OBJ))
         gt_scene_objects = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 6))
+        centers = np.zeros((MAX_NUM_OBJ, 3))
         for i in range(len(scene_objects)):
             scene_object = scene_objects[i]
             new_scene_object = random_sampling(scene_object, MAX_OBJ_POINTS)
             new_scene_object = new_scene_object[:, 0:6]
             new_scene_object[:, 3:] = (new_scene_object[:, 3:] - MEAN_COLOR_RGB) / 256.0
+            centers[i] = target_bboxes.astype(np.float32)[i, 0:3]
             #visualize_numpy_array(new_scene_object, False)
             gt_scene_objects[i] = new_scene_object
             gt_scene_objects_mask[i] = 1
 
         data_dict["gt_scene_objects"] = gt_scene_objects.astype(np.float32)
         data_dict["gt_scene_objects_mask"] = gt_scene_objects_mask.astype(np.float32)
-
+        data_dict["centers_objects"] = centers.astype(np.float32)
         return data_dict
 
     def _get_raw2label(self):
