@@ -26,6 +26,7 @@ ITER_REPORT_TEMPLATE = """
 [sco.] train_lang_acc: {train_lang_acc}
 [sco.] train_ref_acc: {train_ref_acc}
 [sco.] train_obj_acc: {train_obj_acc}
+[sco.] train_ref_acc_top5: {train_ref_acc_top5}
 [sco.] train_iou_rate_25: {train_iou_rate_25}
 [sco.] train_iou_rate_5: {train_iou_rate_5}
 [info] mean_fetch_time: {mean_fetch_time}s
@@ -45,6 +46,7 @@ EPOCH_REPORT_TEMPLATE = """
 [train] train_lang_acc: {train_lang_acc}
 [train] train_ref_acc: {train_ref_acc}
 [train] train_obj_acc: {train_obj_acc}
+[train] train_ref_acc_top5: {train_ref_acc_top5}
 [train] train_iou_rate_25: {train_iou_rate_25}
 [train] train_iou_rate_5: {train_iou_rate_5}
 [val]   val_loss: {val_loss}
@@ -54,6 +56,7 @@ EPOCH_REPORT_TEMPLATE = """
 [val]   val_lang_acc: {val_lang_acc}
 [val]   val_ref_acc: {val_ref_acc}
 [val]   val_obj_acc: {val_obj_acc}
+[val]   val_ref_acc_top5: {val_ref_acc_top5}
 [val]   val_iou_rate_25: {val_iou_rate_25}
 [val]   val_iou_rate_5: {val_iou_rate_5}
 """
@@ -68,6 +71,7 @@ BEST_REPORT_TEMPLATE = """
 [sco.] lang_acc: {lang_acc}
 [sco.] ref_acc: {ref_acc}
 [sco.] obj_acc: {obj_acc}
+[sco.] ref_acc_top5: {ref_acc_top5}
 [sco.] iou_rate_25: {iou_rate_25}
 [sco.] iou_rate_5: {iou_rate_5}
 """
@@ -95,6 +99,7 @@ class Solver():
             "lang_acc": -float("inf"),
             "ref_acc": -float("inf"),
             "obj_acc": -float("inf"),
+            "ref_acc_top5": -float("inf"),
             "iou_rate_0.25": -float("inf"),
             "iou_rate_0.5": -float("inf")
         }
@@ -117,6 +122,7 @@ class Solver():
                 # scores (float, not torch.cuda.FloatTensor)
                 "lang_acc": [],
                 "ref_acc": [],
+                "ref_acc_top5": [],
                 "obj_acc": [],
                 "iou_rate_0.25": [],
                 "iou_rate_0.5": []
@@ -230,6 +236,7 @@ class Solver():
                 "lang_acc": 0,
                 "ref_acc": 0,
                 "obj_acc": 0,
+                "ref_acc_top5": 0,
                 "iou_rate_0.25": 0,
                 "iou_rate_0.5": 0
             }
@@ -264,6 +271,7 @@ class Solver():
             self.log[phase]["lang_acc"].append(self._running_log["lang_acc"])
             self.log[phase]["ref_acc"].append(self._running_log["ref_acc"])
             self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
+            self.log[phase]["ref_acc_top5"].append(self._running_log["ref_acc_top5"])
             self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
             self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])
 
@@ -307,6 +315,7 @@ class Solver():
                 self.best["lang_acc"] = np.mean(self.log[phase]["lang_acc"])
                 self.best["ref_acc"] = np.mean(self.log[phase]["ref_acc"])
                 self.best["obj_acc"] = np.mean(self.log[phase]["obj_acc"])
+                self.best["ref_acc_top5"] = np.mean(self.log[phase]["ref_acc_top5"])
                 self.best["iou_rate_0.25"] = np.mean(self.log[phase]["iou_rate_0.25"])
                 self.best["iou_rate_0.5"] = np.mean(self.log[phase]["iou_rate_0.5"])
 
@@ -320,13 +329,14 @@ class Solver():
         self._running_log["lang_acc"] = data_dict["lang_acc"].item()
         self._running_log["ref_acc"] = np.mean(data_dict["ref_acc"])
         self._running_log["obj_acc"] = data_dict["obj_acc"].item()
+        self._running_log["ref_acc_top5"] =  np.mean(data_dict["ref_acc_top5"])
         self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
         self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
 
     def _dump_log(self, phase):
         log = {
             "loss": ["loss", "ref_loss", "lang_loss", "obj_cls_loss"],
-            "score": ["lang_acc", "ref_acc", "obj_acc", "iou_rate_0.25", "iou_rate_0.5"]
+            "score": ["lang_acc", "ref_acc", "obj_acc", "ref_acc_top5", "iou_rate_0.25", "iou_rate_0.5"]
         }
         for key in log:
             for item in log[key]:
@@ -375,6 +385,7 @@ class Solver():
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
             train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
+            train_ref_acc_top5=round(np.mean([v for v in self.log["train"]["ref_acc_top5"]]), 5),
             train_iou_rate_25=round(np.mean([v for v in self.log["train"]["iou_rate_0.25"]]), 5),
             train_iou_rate_5=round(np.mean([v for v in self.log["train"]["iou_rate_0.5"]]), 5),
             mean_fetch_time=round(np.mean(fetch_time), 5),
@@ -398,6 +409,7 @@ class Solver():
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
             train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
+            train_ref_acc_top5=round(np.mean([v for v in self.log["train"]["ref_acc_top5"]]), 5),
             train_iou_rate_25=round(np.mean([v for v in self.log["train"]["iou_rate_0.25"]]), 5),
             train_iou_rate_5=round(np.mean([v for v in self.log["train"]["iou_rate_0.5"]]), 5),
             val_loss=round(np.mean([v for v in self.log["val"]["loss"]]), 5),
@@ -407,6 +419,7 @@ class Solver():
             val_lang_acc=round(np.mean([v for v in self.log["val"]["lang_acc"]]), 5),
             val_ref_acc=round(np.mean([v for v in self.log["val"]["ref_acc"]]), 5),
             val_obj_acc=round(np.mean([v for v in self.log["val"]["obj_acc"]]), 5),
+            val_ref_acc_top5=round(np.mean([v for v in self.log["val"]["ref_acc_top5"]]), 5),
             val_iou_rate_25=round(np.mean([v for v in self.log["val"]["iou_rate_0.25"]]), 5),
             val_iou_rate_5=round(np.mean([v for v in self.log["val"]["iou_rate_0.5"]]), 5),
         )
@@ -423,6 +436,7 @@ class Solver():
             lang_acc=round(self.best["lang_acc"], 5),
             ref_acc=round(self.best["ref_acc"], 5),
             obj_acc=round(self.best["obj_acc"], 5),
+            ref_acc_top5 =round(self.best["ref_acc_top5"], 5),
             iou_rate_25=round(self.best["iou_rate_0.25"], 5),
             iou_rate_5=round(self.best["iou_rate_0.5"], 5),
         )
