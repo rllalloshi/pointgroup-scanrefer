@@ -57,7 +57,11 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
         data_dict["object_classifier"].shape[2])
     obj_cls_loss = obj_cls_loss_func(logits, labels)
     data_dict["obj_cls_loss"] = obj_cls_loss
-    data_dict["obj_acc"] = torch.tensor(0) # TODO compute object classification accuracy
+
+    # Calculate object classification accuracy
+    obj_classes = torch.argmax(data_dict["object_classifier"], dim=2)
+    obj_acc = (obj_classes == data_dict["sem_cls_label"]).float().mean()
+    data_dict["obj_acc"] = obj_acc
 
     ref_loss, lang_loss, cluster_preds_scores, cluster_labels = compute_reference_loss(data_dict, config,
                                                                                        use_lang_classifier, use_max_iou)
