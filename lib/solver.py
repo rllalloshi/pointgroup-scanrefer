@@ -21,9 +21,12 @@ from utils.eta import decode_eta
 ITER_REPORT_TEMPLATE = """
 -------------------------------iter: [{epoch_id}: {iter_id}/{total_iter}]-------------------------------
 [loss] train_loss: {train_loss}
+[loss] train_ref_loss: {train_ref_loss}
 [loss] train_lang_loss: {train_lang_loss}
-[loss] train_lang_acc: {train_lang_acc}
+[loss] train_obj_cls_loss: {train_obj_cls_loss}
+[sco.] train_lang_acc: {train_lang_acc}
 [sco.] train_ref_acc: {train_ref_acc}
+[sco.] train_obj_acc: {train_obj_acc}
 [info] mean_fetch_time: {mean_fetch_time}s
 [info] mean_forward_time: {mean_forward_time}s
 [info] mean_backward_time: {mean_backward_time}s
@@ -35,13 +38,19 @@ ITER_REPORT_TEMPLATE = """
 EPOCH_REPORT_TEMPLATE = """
 ---------------------------------summary---------------------------------
 [train] train_loss: {train_loss}
+[train] train_ref_loss: {train_ref_loss}
 [train] train_lang_loss: {train_lang_loss}
+[train] train_obj_cls_loss: {train_obj_cls_loss}
 [train] train_lang_acc: {train_lang_acc}
 [train] train_ref_acc: {train_ref_acc}
+[train] train_obj_acc: {train_obj_acc}
 [val]   val_loss: {val_loss}
+[val]   val_ref_loss: {val_ref_loss}
+[val]   val_obj_cls_loss: {val_obj_cls_loss}
 [val]   val_lang_loss: {val_lang_loss}
 [val]   val_lang_acc: {val_lang_acc}
 [val]   val_ref_acc: {val_ref_acc}
+[val]   val_obj_acc: {val_obj_acc}
 """
 
 BEST_REPORT_TEMPLATE = """
@@ -49,8 +58,11 @@ BEST_REPORT_TEMPLATE = """
 [best] epoch: {epoch}
 [loss] loss: {loss}
 [loss] lang_loss: {lang_loss}
-[loss] lang_acc: {lang_acc}
+[loss] ref_loss: {ref_loss}
+[loss] obj_cls_loss: {obj_cls_loss}
+[sco.] lang_acc: {lang_acc}
 [sco.] ref_acc: {ref_acc}
+[sco.] obj_acc: {obj_acc}
 """
 
 class Solver():
@@ -72,14 +84,10 @@ class Solver():
             "loss": float("inf"),
             "ref_loss": float("inf"),
             "lang_loss": float("inf"),
-            "objectness_loss": float("inf"),
-            "vote_loss": float("inf"),
-            "box_loss": float("inf"),
+            "obj_cls_loss": float("inf"),
             "lang_acc": -float("inf"),
             "ref_acc": -float("inf"),
             "obj_acc": -float("inf"),
-            "pos_ratio": -float("inf"),
-            "neg_ratio": -float("inf"),
             "iou_rate_0.25": -float("inf"),
             "iou_rate_0.5": -float("inf")
         }
@@ -98,15 +106,11 @@ class Solver():
                 "loss": [],
                 "ref_loss": [],
                 "lang_loss": [],
-                "objectness_loss": [],
-                "vote_loss": [],
-                "box_loss": [],
+                "obj_cls_loss": [],
                 # scores (float, not torch.cuda.FloatTensor)
                 "lang_acc": [],
                 "ref_acc": [],
                 "obj_acc": [],
-                "pos_ratio": [],
-                "neg_ratio": [],
                 "iou_rate_0.25": [],
                 "iou_rate_0.5": []
             } for phase in ["train", "val"]
@@ -192,9 +196,8 @@ class Solver():
         # dump
 
         self._running_log["lang_loss"] = data_dict["lang_loss"]
-       # self._running_log["objectness_loss"] = data_dict["objectness_loss"]
-       # self._running_log["vote_loss"] = data_dict["vote_loss"]
-        #self._running_log["box_loss"] = data_dict["box_loss"]
+        self._running_log["ref_loss"] = data_dict["ref_loss"]
+        self._running_log["obj_cls_loss"] = data_dict["obj_cls_loss"]
         self._running_log["loss"] = data_dict["loss"]
       
     def _feed(self, dataloader, phase, epoch_id):
@@ -215,15 +218,11 @@ class Solver():
                 "loss": 0,
                 "ref_loss": 0,
                 "lang_loss": 0,
-                "objectness_loss": 0,
-                "vote_loss": 0,
-                "box_loss": 0,
+                "obj_cls_loss": 0,
                 # acc
                 "lang_acc": 0,
                 "ref_acc": 0,
                 "obj_acc": 0,
-                "pos_ratio": 0,
-                "neg_ratio": 0,
                 "iou_rate_0.25": 0,
                 "iou_rate_0.5": 0
             }
@@ -251,17 +250,13 @@ class Solver():
 
             # record log
             self.log[phase]["loss"].append(self._running_log["loss"].item())
-            # self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
+            self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
             self.log[phase]["lang_loss"].append(self._running_log["lang_loss"].item())
-            #self.log[phase]["objectness_loss"].append(self._running_log["objectness_loss"].item())
-            #self.log[phase]["vote_loss"].append(self._running_log["vote_loss"].item())
-            #self.log[phase]["box_loss"].append(self._running_log["box_loss"].item())
+            self.log[phase]["obj_cls_loss"].append(self._running_log["obj_cls_loss"].item())
 
             self.log[phase]["lang_acc"].append(self._running_log["lang_acc"])
             self.log[phase]["ref_acc"].append(self._running_log["ref_acc"])
             self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
-            #self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
-            #self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
             self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
             self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])
 
@@ -291,7 +286,7 @@ class Solver():
 
         # check best
         if phase == "val":
-            cur_criterion = "iou_rate_0.5"
+            cur_criterion = "ref_loss"
             cur_best = np.mean(self.log[phase][cur_criterion])
             if cur_best > self.best[cur_criterion]:
                 self._log("best {} achieved: {}".format(cur_criterion, cur_best))
@@ -299,16 +294,12 @@ class Solver():
                 self._log("current val_loss: {}".format(np.mean(self.log["val"]["loss"])))
                 self.best["epoch"] = epoch_id + 1
                 self.best["loss"] = np.mean(self.log[phase]["loss"])
-                # self.best["ref_loss"] = np.mean(self.log[phase]["ref_loss"])
+                self.best["ref_loss"] = np.mean(self.log[phase]["ref_loss"])
                 self.best["lang_loss"] = np.mean(self.log[phase]["lang_loss"])
-                #self.best["objectness_loss"] = np.mean(self.log[phase]["objectness_loss"])
-                #self.best["vote_loss"] = np.mean(self.log[phase]["vote_loss"])
-                #self.best["box_loss"] = np.mean(self.log[phase]["box_loss"])
+                self.best["obj_cls_loss"] = np.mean(self.log[phase]["obj_cls_loss"])
                 self.best["lang_acc"] = np.mean(self.log[phase]["lang_acc"])
                 self.best["ref_acc"] = np.mean(self.log[phase]["ref_acc"])
-                #self.best["obj_acc"] = np.mean(self.log[phase]["obj_acc"])
-                #self.best["pos_ratio"] = np.mean(self.log[phase]["pos_ratio"])
-                #self.best["neg_ratio"] = np.mean(self.log[phase]["neg_ratio"])
+                self.best["obj_acc"] = np.mean(self.log[phase]["obj_acc"])
                 self.best["iou_rate_0.25"] = np.mean(self.log[phase]["iou_rate_0.25"])
                 self.best["iou_rate_0.5"] = np.mean(self.log[phase]["iou_rate_0.5"])
 
@@ -321,16 +312,14 @@ class Solver():
         # dump
         self._running_log["lang_acc"] = data_dict["lang_acc"].item()
         self._running_log["ref_acc"] = np.mean(data_dict["ref_acc"])
-        #self._running_log["obj_acc"] = data_dict["obj_acc"].item()
-        self._running_log["pos_ratio"] = data_dict["pos_ratio"].item()
-        self._running_log["neg_ratio"] = data_dict["neg_ratio"].item()
-        # self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
-        # self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
+        self._running_log["obj_acc"] = data_dict["obj_acc"].item()
+        self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
+        self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
 
     def _dump_log(self, phase):
         log = {
-            "loss": ["loss", "ref_loss", "lang_loss"],
-            "score": ["lang_acc", "ref_acc", "iou_rate_0.25", "iou_rate_0.5"]
+            "loss": ["loss", "ref_loss", "lang_loss", "obj_cls_loss"],
+            "score": ["lang_acc", "ref_acc", "obj_acc", "iou_rate_0.25", "iou_rate_0.5"]
         }
         for key in log:
             for item in log[key]:
@@ -373,18 +362,14 @@ class Solver():
             iter_id=self._global_iter_id + 1,
             total_iter=self._total_iter["train"],
             train_loss=round(np.mean([v for v in self.log["train"]["loss"]]), 5),
-            # train_ref_loss=round(np.mean([v for v in self.log["train"]["ref_loss"]]), 5),
+            train_ref_loss=round(np.mean([v for v in self.log["train"]["ref_loss"]]), 5),
             train_lang_loss=round(np.mean([v for v in self.log["train"]["lang_loss"]]), 5),
-            #train_objectness_loss=round(np.mean([v for v in self.log["train"]["objectness_loss"]]), 5),
-            #train_vote_loss=round(np.mean([v for v in self.log["train"]["vote_loss"]]), 5),
-            #train_box_loss=round(np.mean([v for v in self.log["train"]["box_loss"]]), 5),
+            train_obj_cls_loss=round(np.mean([v for v in self.log["train"]["obj_cls_loss"]]), 5),
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
-            #train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
-            #train_pos_ratio=round(np.mean([v for v in self.log["train"]["pos_ratio"]]), 5),
-            #train_neg_ratio=round(np.mean([v for v in self.log["train"]["neg_ratio"]]), 5),
-            # train_iou_rate_25=round(np.mean([v for v in self.log["train"]["iou_rate_0.25"]]), 5),
-            # train_iou_rate_5=round(np.mean([v for v in self.log["train"]["iou_rate_0.5"]]), 5),
+            train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
+            train_iou_rate_25=round(np.mean([v for v in self.log["train"]["iou_rate_0.25"]]), 5),
+            train_iou_rate_5=round(np.mean([v for v in self.log["train"]["iou_rate_0.5"]]), 5),
             mean_fetch_time=round(np.mean(fetch_time), 5),
             mean_forward_time=round(np.mean(forward_time), 5),
             mean_backward_time=round(np.mean(backward_time), 5),
@@ -400,29 +385,20 @@ class Solver():
         self._log("epoch [{}/{}] done...".format(epoch_id+1, self.epoch))
         epoch_report = self.__epoch_report_template.format(
             train_loss=round(np.mean([v for v in self.log["train"]["loss"]]), 5),
-            # train_ref_loss=round(np.mean([v for v in self.log["train"]["ref_loss"]]), 5),
+            train_ref_loss=round(np.mean([v for v in self.log["train"]["ref_loss"]]), 5),
             train_lang_loss=round(np.mean([v for v in self.log["train"]["lang_loss"]]), 5),
-            #train_objectness_loss=round(np.mean([v for v in self.log["train"]["objectness_loss"]]), 5),
-            #train_vote_loss=round(np.mean([v for v in self.log["train"]["vote_loss"]]), 5),
-            #train_box_loss=round(np.mean([v for v in self.log["train"]["box_loss"]]), 5),
+            train_obj_cls_loss=round(np.mean([v for v in self.log["train"]["obj_cls_loss"]]), 5),
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
-            #train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
-            #train_pos_ratio=round(np.mean([v for v in self.log["train"]["pos_ratio"]]), 5),
-            #train_neg_ratio=round(np.mean([v for v in self.log["train"]["neg_ratio"]]), 5),
+            train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
             train_iou_rate_25=round(np.mean([v for v in self.log["train"]["iou_rate_0.25"]]), 5),
             train_iou_rate_5=round(np.mean([v for v in self.log["train"]["iou_rate_0.5"]]), 5),
             val_loss=round(np.mean([v for v in self.log["val"]["loss"]]), 5),
-            # val_ref_loss=round(np.mean([v for v in self.log["val"]["ref_loss"]]), 5),
             val_lang_loss=round(np.mean([v for v in self.log["val"]["lang_loss"]]), 5),
-            #val_objectness_loss=round(np.mean([v for v in self.log["val"]["objectness_loss"]]), 5),
-            #val_vote_loss=round(np.mean([v for v in self.log["val"]["vote_loss"]]), 5),
-            #val_box_loss=round(np.mean([v for v in self.log["val"]["box_loss"]]), 5),
-            #val_lang_acc=round(np.mean([v for v in self.log["val"]["lang_acc"]]), 5),
+            val_obj_cls_loss=round(np.mean([v for v in self.log["val"]["obj_cls_loss"]]), 5),
+            val_lang_acc=round(np.mean([v for v in self.log["val"]["lang_acc"]]), 5),
             val_ref_acc=round(np.mean([v for v in self.log["val"]["ref_acc"]]), 5),
-            #val_obj_acc=round(np.mean([v for v in self.log["val"]["obj_acc"]]), 5),
-            # val_pos_ratio=round(np.mean([v for v in self.log["val"]["pos_ratio"]]), 5),
-            # val_neg_ratio=round(np.mean([v for v in self.log["val"]["neg_ratio"]]), 5),
+            val_obj_acc=round(np.mean([v for v in self.log["val"]["obj_acc"]]), 5),
             val_iou_rate_25=round(np.mean([v for v in self.log["val"]["iou_rate_0.25"]]), 5),
             val_iou_rate_5=round(np.mean([v for v in self.log["val"]["iou_rate_0.5"]]), 5),
         )
@@ -433,16 +409,12 @@ class Solver():
         best_report = self.__best_report_template.format(
             epoch=self.best["epoch"],
             loss=round(self.best["loss"], 5),
-            # ref_loss=round(self.best["ref_loss"], 5),
+            ref_loss=round(self.best["ref_loss"], 5),
             lang_loss=round(self.best["lang_loss"], 5),
-            #objectness_loss=round(self.best["objectness_loss"], 5),
-            #vote_loss=round(self.best["vote_loss"], 5),
-            #box_loss=round(self.best["box_loss"], 5),
+            obj_cls_loss=round(self.best["obj_cls_loss"], 5),
             lang_acc=round(self.best["lang_acc"], 5),
             ref_acc=round(self.best["ref_acc"], 5),
-            #obj_acc=round(self.best["obj_acc"], 5),
-            #pos_ratio=round(self.best["pos_ratio"], 5),
-            #neg_ratio=round(self.best["neg_ratio"], 5),
+            obj_acc=round(self.best["obj_acc"], 5),
             iou_rate_25=round(self.best["iou_rate_0.25"], 5),
             iou_rate_5=round(self.best["iou_rate_0.5"], 5),
         )
