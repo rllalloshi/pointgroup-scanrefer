@@ -271,7 +271,7 @@ class Solver():
                     self._train_report(epoch_id)
 
                 # evaluation
-                if self._global_iter_id % self.val_step == 0 and self._global_iter_id != 0:
+                if self._global_iter_id % self.val_step == 0:
                     print("evaluating...")
                     # val
                     self._feed(self.dataloader["val"], "val", epoch_id)
@@ -286,7 +286,7 @@ class Solver():
 
         # check best
         if phase == "val":
-            cur_criterion = "ref_loss"
+            cur_criterion = "ref_acc"
             cur_best = np.mean(self.log[phase][cur_criterion])
             if cur_best > self.best[cur_criterion]:
                 self._log("best {} achieved: {}".format(cur_criterion, cur_best))
@@ -394,6 +394,7 @@ class Solver():
             train_iou_rate_25=round(np.mean([v for v in self.log["train"]["iou_rate_0.25"]]), 5),
             train_iou_rate_5=round(np.mean([v for v in self.log["train"]["iou_rate_0.5"]]), 5),
             val_loss=round(np.mean([v for v in self.log["val"]["loss"]]), 5),
+            val_ref_loss=round(np.mean([v for v in self.log["val"]["ref_loss"]]), 5),
             val_lang_loss=round(np.mean([v for v in self.log["val"]["lang_loss"]]), 5),
             val_obj_cls_loss=round(np.mean([v for v in self.log["val"]["obj_cls_loss"]]), 5),
             val_lang_acc=round(np.mean([v for v in self.log["val"]["lang_acc"]]), 5),
