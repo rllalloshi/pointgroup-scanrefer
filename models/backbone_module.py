@@ -58,10 +58,6 @@ class Pointnet2Backbone(nn.Module):
             normalize_xyz=True,
         )
 
-        # --------- 2 FEATURE UPSAMPLING LAYERS --------
-        #self.fp1 = PointnetFPModule(mlp=[128 + 128, 128, 128])
-        #self.fp2 = PointnetFPModule(mlp=[128 + 128, 128, 128])
-
     def _break_up_pc(self, pc):
         xyz = pc[..., :3].contiguous()
         features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
@@ -88,9 +84,6 @@ class Pointnet2Backbone(nn.Module):
                 XXX-inds: int64 Tensor of shape (B,K) values in [0,N-1]
         """
 
-
-        # batch_size = pointcloud.shape[0]
-
         xyz, features = data_dict["xyz_gt"], data_dict['features_gt']
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
@@ -107,9 +100,6 @@ class Pointnet2Backbone(nn.Module):
         #print(features.shape)
 
         xyz, features, fps_inds = self.sa3(xyz, features) # this fps_inds is just 0,1,...,511
-        data_dict['sa3_xyz'] = xyz
-        data_dict['sa3_features'] = features
-        #print(features.shape)
 
         xyz, features, fps_inds = self.sa4(xyz, features) # this fps_inds is just 0,1,...,255
         data_dict['sa4_xyz'] = xyz

@@ -6,7 +6,6 @@ import os
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from models.backbone_module import Pointnet2Backbone
-from models.voting_module import VotingModule
 from models.ref_module import RefModule
 
 
@@ -28,10 +27,6 @@ class RefNet(nn.Module):
         # Backbone point feature learning
         self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim-1)
 
-        # Hough voting
-        # self.vgen = VotingModule(self.vote_factor, 256)
-
-        # Vote aggregation, detection and language reference
         self.rfnet = RefModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, use_lang_classifier)
 
     def forward(self, data_dict):
@@ -67,19 +62,5 @@ class RefNet(nn.Module):
             features = np.resize(features, (features.shape[0], features.shape[1]))
             batch_features[i] = features
         data_dict = self.rfnet(batch_features, data_dict)
-                
-        # --------- HOUGH VOTING ---------
-
-        # data_dict["seed_inds"] = data_dict["fp2_inds"]
-        # data_dict["seed_xyz"] = xyz
-        # data_dict["seed_features"] = features
-        #
-        # xyz, features = self.vgen(xyz, features)
-        # features_norm = torch.norm(features, p=2, dim=1)
-        # features = features.div(features_norm.unsqueeze(1))
-        # data_dict["vote_xyz"] = xyz
-        # data_dict["vote_features"] = features
-
-
 
         return data_dict
