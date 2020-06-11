@@ -6,7 +6,7 @@ import sys
 import os
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
-from lib.pointnet2.pointnet2_modules import PointnetSAModuleVotes, PointnetFPModule
+from lib.pointnet2.pointnet2_modules import PointnetSAModuleMSG, PointnetSAModule
 
 class Pointnet2Backbone(nn.Module):
     r"""
@@ -25,29 +25,29 @@ class Pointnet2Backbone(nn.Module):
         self.input_feature_dim = input_feature_dim
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
-        self.sa1 = PointnetSAModuleVotes(
+        self.sa1 = PointnetSAModuleMSG(
+            npoint=128,
+            radii=[0.1, 0.2, 0.4],
+            nsamples=[16, 32, 64],
+            mlps=[[input_feature_dim, 32, 32, 64], [3, 64, 64, 128], [3, 64, 96, 128]],
+            use_xyz=True,
+        )
+
+        input_channels = 64 + 128 + 128
+        self.sa2 = PointnetSAModuleMSG(
             npoint=64,
-            radius=0.2,
-            nsample=64,
-            mlp=[input_feature_dim, 32, 32, 64],
-            use_xyz=True,
-            normalize_xyz=True
+            radii=[0.2, 0.4, 0.8],
+            nsamples=[8, 16, 32],
+            mlps=[
+                [input_channels, 64, 64, 128],
+                [input_channels, 128, 128, 256],
+                [input_channels, 128, 128, 256],
+            ],
+            use_xyz=True
         )
-        self.sa2 = PointnetSAModuleVotes(
-            npoint=32,
-            radius=0.8,
-            nsample=32,
-            mlp=[64, 64, 64, 128],
+        self.sa3 = PointnetSAModule(
+            mlp=[128 + 256 + 256, 256, 512, 128],
             use_xyz=True,
-            normalize_xyz=True
-        )
-        self.sa3 = PointnetSAModuleVotes(
-            npoint=1,
-            radius=1.2,
-            nsample=16,
-            mlp=[128, 64, 64, 128],
-            use_xyz=True,
-            normalize_xyz=True
         )
 
     def _break_up_pc(self, pc):
@@ -79,17 +79,16 @@ class Pointnet2Backbone(nn.Module):
         xyz, features = data_dict["xyz_gt"], data_dict['features_gt']
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
-        xyz, features, fps_inds = self.sa1(xyz, features)
-        data_dict['sa1_inds'] = fps_inds
+        xyz, features = self.sa1(xyz, features)
         data_dict['sa1_xyz'] = xyz
         data_dict['sa1_features'] = features
 
-        xyz, features, fps_inds = self.sa2(xyz, features) # this fps_inds is just 0,1,...,1023
-        data_dict['sa2_inds'] = fps_inds
+        xyz, features = self.sa2(xyz, features) # this fps_inds is just 0,1,...,1023
         data_dict['sa2_xyz'] = xyz
         data_dict['sa2_features'] = features
 
-        xyz, features, fps_inds = self.sa3(xyz, features) # this fps_inds is just 0,1,...,511
+        xyz, features = self.sa3(xyz, features) # this fps_inds is just 0,1,...,511
+        #print(features.shape)
         data_dict['fp2_features'] = features
         return data_dict
 
