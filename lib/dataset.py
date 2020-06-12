@@ -248,7 +248,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["centers_objects"] = centers.astype(np.float32)
         data_dict["sem_cls_label"] = data_dict["sem_cls_label"]
 
-        self.shuffle_objects(data_dict)
+       #self.shuffle_objects(data_dict)
 
         return data_dict
 

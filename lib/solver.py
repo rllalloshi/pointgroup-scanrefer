@@ -424,7 +424,7 @@ class Solver():
             val_iou_rate_5=round(np.mean([v for v in self.log["val"]["iou_rate_0.5"]]), 5),
         )
         self._log(epoch_report)
-    
+
     def _best_report(self):
         self._log("training completed...")
         best_report = self.__best_report_template.format(

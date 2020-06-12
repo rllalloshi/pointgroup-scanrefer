@@ -5,8 +5,9 @@ import numpy as np
 import sys
 import os
 
+
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
-from lib.pointnet2.pointnet2_modules import PointnetSAModuleMSG, PointnetSAModule
+from lib.pointnet2.pointnet2_modules import PointnetSAModule
 
 class Pointnet2Backbone(nn.Module):
     r"""
@@ -19,35 +20,47 @@ class Pointnet2Backbone(nn.Module):
             Number of input channels in the feature descriptor for each point.
             e.g. 3 for RGB.
     """
-    def __init__(self, input_feature_dim=0):
+    def __init__(self, num_class, input_feature_dim=0):
         super().__init__()
 
         self.input_feature_dim = input_feature_dim
 
-        # --------- 4 SET ABSTRACTION LAYERS ---------
-        self.sa1 = PointnetSAModuleMSG(
-            npoint=128,
-            radii=[0.1, 0.2, 0.4],
-            nsamples=[16, 32, 64],
-            mlps=[[input_feature_dim, 32, 32, 64], [3, 64, 64, 128], [3, 64, 96, 128]],
-            use_xyz=True,
+        self.SA_modules = nn.ModuleList()
+        self.SA_modules.append(
+            PointnetSAModule(
+                npoint=128,
+                radius=0.2,
+                nsample=64,
+                mlp=[input_feature_dim, 32, 32, 64],
+                use_xyz=True,
+            )
         )
 
-        input_channels = 64 + 128 + 128
-        self.sa2 = PointnetSAModuleMSG(
-            npoint=64,
-            radii=[0.2, 0.4, 0.8],
-            nsamples=[8, 16, 32],
-            mlps=[
-                [input_channels, 64, 64, 128],
-                [input_channels, 128, 128, 256],
-                [input_channels, 128, 128, 256],
-            ],
-            use_xyz=True
+        self.SA_modules.append(
+            PointnetSAModule(
+                npoint=64,
+                radius=0.4,
+                nsample=16,
+                mlp=[64, 62, 64, 128],
+                use_xyz=True,
+            )
         )
-        self.sa3 = PointnetSAModule(
-            mlp=[128 + 256 + 256, 256, 512, 128],
-            use_xyz=True,
+        self.SA_modules.append(
+            PointnetSAModule(
+                mlp=[128, 128, 512, 1024],
+                use_xyz=True,
+            )
+        )
+
+        self.fc_layer = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(True),
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(True),
+            nn.Dropout(0.5),
+            nn.Linear(256, num_class),
         )
 
     def _break_up_pc(self, pc):
@@ -76,20 +89,14 @@ class Pointnet2Backbone(nn.Module):
                 XXX-inds: int64 Tensor of shape (B,K) values in [0,N-1]
         """
 
-        xyz, features = data_dict["xyz_gt"], data_dict['features_gt']
+        xyz, features = self._break_up_pc(data_dict['batch_objects'])
 
-        # --------- 4 SET ABSTRACTION LAYERS ---------
-        xyz, features = self.sa1(xyz, features)
-        data_dict['sa1_xyz'] = xyz
-        data_dict['sa1_features'] = features
+        for module in self.SA_modules:
+            xyz, features = module(xyz, features)
 
-        xyz, features = self.sa2(xyz, features) # this fps_inds is just 0,1,...,1023
-        data_dict['sa2_xyz'] = xyz
-        data_dict['sa2_features'] = features
+        data_dict['object_features'] = features
 
-        xyz, features = self.sa3(xyz, features) # this fps_inds is just 0,1,...,511
-        #print(features.shape)
-        data_dict['fp2_features'] = features
+        data_dict['object_classifier'] = self.fc_layer(features.squeeze(-1))
         return data_dict
 
 if __name__=='__main__':
