@@ -28,9 +28,9 @@ class Pointnet2Backbone(nn.Module):
         self.SA_modules = nn.ModuleList()
         self.SA_modules.append(
             PointnetSAModule(
-                npoint=128,
+                npoint=64,
                 radius=0.2,
-                nsample=64,
+                nsample=16,
                 mlp=[input_feature_dim, 32, 32, 64],
                 use_xyz=True,
             )
@@ -41,25 +41,18 @@ class Pointnet2Backbone(nn.Module):
                 npoint=64,
                 radius=0.4,
                 nsample=16,
-                mlp=[64, 62, 64, 128],
+                mlp=[64, 64, 64, 128],
                 use_xyz=True,
             )
         )
         self.SA_modules.append(
             PointnetSAModule(
-                mlp=[128, 128, 512, 1024],
+                mlp=[128, 128, 256],
                 use_xyz=True,
             )
         )
 
         self.fc_layer = nn.Sequential(
-            nn.Linear(1024, 512, bias=False),
-            nn.BatchNorm1d(512),
-            nn.ReLU(True),
-            nn.Linear(512, 256, bias=False),
-            nn.BatchNorm1d(256),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
             nn.Linear(256, num_class),
         )
 

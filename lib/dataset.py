@@ -26,7 +26,7 @@ from lib.o3d_helper import visualize_numpy_array
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-MAX_OBJ_POINTS = 700
+MAX_OBJ_POINTS = 1024
 
 # data path
 SCANNET_V2_TSV = os.path.join(CONF.PATH.SCANNET_META, "scannetv2-labels.combined.tsv")
@@ -248,7 +248,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["centers_objects"] = centers.astype(np.float32)
         data_dict["sem_cls_label"] = data_dict["sem_cls_label"]
 
-       #self.shuffle_objects(data_dict)
+        self.shuffle_objects(data_dict)
 
         return data_dict
 
