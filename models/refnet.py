@@ -3,13 +3,12 @@ import torch.nn as nn
 import numpy as np
 import sys
 import os
-
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
-from models.backbone_module import Pointnet2Backbone
 from models.voting_module import VotingModule
 from models.ref_module import RefModule
-
-
+from lib.pointgroup import PointGroup
+from lib.util.config import cfg
+from lib.pointgroup import model_fn_decorator
 class RefNet(nn.Module):
     def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, input_feature_dim=0, num_proposal=128, vote_factor=1, sampling="vote_fps", use_lang_classifier=True):
         super().__init__()
@@ -26,13 +25,17 @@ class RefNet(nn.Module):
         self.use_lang_classifier=use_lang_classifier
 
         # Backbone point feature learning
-        self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim)
+        self.backbone_net = PointGroup(cfg)
 
-        # Hough voting
-        self.vgen = VotingModule(self.vote_factor, 256)
 
         # Vote aggregation, detection and language reference
         self.rfnet = RefModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, use_lang_classifier)
+
+    def _break_up_pc(self, pc):
+        xyz = pc[..., :3].contiguous()
+        features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
+
+        return xyz, features
 
     def forward(self, data_dict):
         """ Forward pass of the network
@@ -53,23 +56,15 @@ class RefNet(nn.Module):
             end_points: dict
         """
 
-        batch_size = data_dict["point_clouds"].shape[0]
+        model_fn = model_fn_decorator()
+        ret = model_fn(data_dict, self.backbone_net, 1)
 
-        data_dict = self.backbone_net(data_dict)
-                
-        # --------- HOUGH VOTING ---------
-        xyz = data_dict["fp2_xyz"]
-        features = data_dict["fp2_features"]
-        data_dict["seed_inds"] = data_dict["fp2_inds"]
-        data_dict["seed_xyz"] = xyz
-        data_dict["seed_features"] = features
-        
-        xyz, features = self.vgen(xyz, features)
-        features_norm = torch.norm(features, p=2, dim=1)
-        features = features.div(features_norm.unsqueeze(1))
-        data_dict["vote_xyz"] = xyz
-        data_dict["vote_features"] = features
+        score_feats, score, proposals_idx, proposals_offset = ret['proposal_scores']
 
-        data_dict = self.rfnet(xyz, features, data_dict)
+        print(f"score_feats {score_feats.shape}")
+        print(f"score_feats {score.shape}")
+        print(f"score_feats {proposals_idx.shape}")
+
+        data_dict = self.rfnet(data_dict['locs'], score_feats, data_dict)
 
         return data_dict

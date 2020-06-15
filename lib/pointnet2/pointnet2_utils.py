@@ -415,7 +415,7 @@ class GroupAll(nn.Module):
         else:
             new_features = grouped_xyz
 
-        if self.ret_grouped_xyz:
-            return new_features, grouped_xyz
-        else:
-            return new_features
+        #if self.ret_grouped_xyz:
+         #   return new_features, grouped_xyz
+        #else:
+        return new_features

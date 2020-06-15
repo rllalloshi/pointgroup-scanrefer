@@ -12,6 +12,8 @@ import pickle
 import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
+import torch
+from lib.pointgroup_ops.functions import pointgroup_ops
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from lib.config import CONF
@@ -153,24 +155,6 @@ class ScannetReferenceDataset(Dataset):
             # Translation
             point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
 
-        # compute votes *AFTER* augmentation
-        # generate votes
-        # Note: since there's no map between bbox instance labels and
-        # pc instance_labels (it had been filtered 
-        # in the data preparation step) we'll compute the instance bbox
-        # from the points sharing the same instance label. 
-        point_votes = np.zeros([self.num_points, 3])
-        point_votes_mask = np.zeros(self.num_points)
-        for i_instance in np.unique(instance_labels):            
-            # find all points belong to that instance
-            ind = np.where(instance_labels == i_instance)[0]
-            # find the semantic label            
-            if semantic_labels[ind[0]] in DC.nyu40ids:
-                x = point_cloud[ind,:3]
-                center = 0.5*(x.min(0) + x.max(0))
-                point_votes[ind, :] = center - x
-                point_votes_mask[ind] = 1.0
-        point_votes = np.tile(point_votes, (1, 3)) # make 3 votes identical 
         
         class_ind = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:num_bbox,-2]]
         # NOTE: set size class as semantic class. Consider use size2class.
@@ -203,8 +187,6 @@ class ScannetReferenceDataset(Dataset):
         data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
-        data_dict["vote_label"] = point_votes.astype(np.float32)
-        data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
@@ -220,7 +202,42 @@ class ScannetReferenceDataset(Dataset):
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
 
+
         return data_dict
+
+    def trainMerge(self, id):
+        locs = []
+        locs_float = []
+        feats = []
+        # labels = []
+        # instance_labels = []
+        batch_offsets = [0]
+        batch_size = len(id)
+
+        for i, idx in enumerate(id):
+            num_points = id[i]['point_clouds'].shape[0]
+            xyz = id[i]['point_clouds'][:, 0:3]
+            rgb = id[i]['point_clouds'][:, 3:6]
+            locs.append(torch.cat([torch.LongTensor(xyz.shape[0], 1).fill_(i), torch.from_numpy(xyz).long()], 1))
+            feats.append(torch.from_numpy(rgb) + torch.randn(3) * 0.1)
+            batch_offsets.append(batch_offsets[-1] + xyz.shape[0])
+            locs_float.append(torch.from_numpy(xyz))
+            # labels.append(torch.from_numpy(label))
+            # instance_labels.append(torch.from_numpy(instance_label))
+
+        ### merge all the scenes in the batchd
+        batch_offsets = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
+        locs = torch.cat(locs, 0)                                # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
+        locs_float = torch.cat(locs_float, 0).to(torch.float32)  # float (N, 3)
+        feats = torch.cat(feats, 0)                              # float (N, C)
+
+
+        voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, batch_size, 4)
+
+        return {'locs': locs, 'voxel_locs': voxel_locs, 'p2v_map': p2v_map, 'v2p_map': v2p_map, 'feats': feats,
+                'batch_offsets': batch_offsets, 'locs_float': locs_float,
+                # 'labels': labels, 'instance_labels': instance_labels
+                }
     
     def _get_raw2label(self):
         # mapping

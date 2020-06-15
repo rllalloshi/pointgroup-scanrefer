@@ -257,7 +257,7 @@ class Solver():
             }
 
             # load
-            self.log[phase]["fetch"].append(data_dict["load_time"].sum().item())
+            # self.log[phase]["fetch"].append(data_dict["load_time"].sum().item())
 
             with torch.autograd.set_detect_anomaly(True):
                 # forward

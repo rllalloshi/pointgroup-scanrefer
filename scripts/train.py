@@ -28,7 +28,7 @@ def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
     dataset = ScannetReferenceDataset(
         scanrefer=scanrefer[split], 
         scanrefer_all_scene=all_scene_list, 
-        split=split, 
+        split=split,
         num_points=args.num_points, 
         use_height=(not args.no_height),
         use_color=args.use_color, 
@@ -36,7 +36,7 @@ def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
         use_multiview=args.use_multiview
     )
     # dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,  collate_fn=dataset.trainMerge)
 
     return dataset, dataloader
 
