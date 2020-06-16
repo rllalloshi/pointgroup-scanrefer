@@ -155,7 +155,28 @@ class ScannetReferenceDataset(Dataset):
             # Translation
             point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
 
-        
+
+
+        # compute votes *AFTER* augmentation
+        # generate votes
+        # Note: since there's no map between bbox instance labels and
+        # pc instance_labels (it had been filtered
+        # in the data preparation step) we'll compute the instance bbox
+        # from the points sharing the same instance label.
+        point_votes = np.zeros([self.num_points, 3])
+        point_votes_mask = np.zeros(self.num_points)
+        for i_instance in np.unique(instance_labels):
+            # find all points belong to that instance
+            ind = np.where(instance_labels == i_instance)[0]
+            # find the semantic label
+            if semantic_labels[ind[0]] in DC.nyu40ids:
+                x = point_cloud[ind,:3]
+                center = 0.5*(x.min(0) + x.max(0))
+                point_votes[ind, :] = center - x
+                point_votes_mask[ind] = 1.0
+        # point_votes = np.tile(point_votes, (1, 3)) # make 3 votes identical TODO WTF is that
+
+
         class_ind = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:num_bbox,-2]]
         # NOTE: set size class as semantic class. Consider use size2class.
         size_classes[0:num_bbox] = class_ind
@@ -188,6 +209,8 @@ class ScannetReferenceDataset(Dataset):
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
+        data_dict["vote_label"] = point_votes.astype(np.float32)  #(npoints, 9)
+        data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
