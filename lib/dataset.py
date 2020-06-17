@@ -77,6 +77,7 @@ class ScannetReferenceDataset(Dataset):
         instance_labels = self.scene_data[scene_id]["instance_labels"]
         semantic_labels = self.scene_data[scene_id]["semantic_labels"]
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
+        scene_objects = self.scene_data[scene_id]["scene_objects"]
 
         if not self.use_color:
             point_cloud = mesh_vertices[:,0:3] # do not use color for now
@@ -224,7 +225,11 @@ class ScannetReferenceDataset(Dataset):
         data_dict["object_cat"] = np.array(self.raw2label[object_name]).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
+        data_dict["pt_to_label"] ={}
 
+        for i in range(len(scene_objects)):
+            for point in scene_objects[i]:
+                data_dict["pt_to_label"][point[0:3]] = data_dict["sem_cls_label"][i]
 
         return data_dict
 
