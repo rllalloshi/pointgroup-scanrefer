@@ -26,7 +26,7 @@ def export_one_scan(scan_name, output_filename_prefix):
     agg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean.aggregation.json')
     seg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean_2.0.010000.segs.json')
     meta_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '.txt') # includes axisAlignment info for the train set scans.   
-    mesh_vertices, semantic_labels, instance_labels, instance_bboxes, instance2semantic = export(mesh_file, agg_file, seg_file, meta_file, LABEL_MAP_FILE, None)
+    mesh_vertices, semantic_labels, instance_labels, instance_bboxes, instance2semantic, scene_objects = export(mesh_file, agg_file, seg_file, meta_file, LABEL_MAP_FILE, None)
 
     mask = np.logical_not(np.in1d(semantic_labels, DONOTCARE_CLASS_IDS))
     mesh_vertices = mesh_vertices[mask,:]
@@ -50,10 +50,14 @@ def export_one_scan(scan_name, output_filename_prefix):
 
     print("Shape of points: {}".format(mesh_vertices.shape))
 
+    print("Number of objects in scene: " + str(len(scene_objects)))
+
     np.save(output_filename_prefix+'_vert.npy', mesh_vertices)
     np.save(output_filename_prefix+'_sem_label.npy', semantic_labels)
     np.save(output_filename_prefix+'_ins_label.npy', instance_labels)
     np.save(output_filename_prefix+'_bbox.npy', instance_bboxes)
+    for i in range(len(scene_objects)):
+        np.save(output_filename_prefix + '_object_' + str(i) + '.npy', scene_objects[i])
 
 def batch_export():
     if not os.path.exists(OUTPUT_FOLDER):

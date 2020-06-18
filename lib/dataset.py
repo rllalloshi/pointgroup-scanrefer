@@ -13,10 +13,14 @@ import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
 import torch
+import scipy.ndimage
+import scipy.interpolate
+import math
 from lib.pointgroup_ops.functions import pointgroup_ops
-
+from lib.scene_objects_helper import read_scene_objects
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from lib.config import CONF
+from lib.util.config import cfg
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
 
@@ -197,6 +201,8 @@ class ScannetReferenceDataset(Dataset):
             
         data_dict = {}
         data_dict["point_clouds"] = point_cloud.astype(np.float32) # point cloud data including features
+        data_dict["semantic_labels"] = semantic_labels.astype(np.int32) # point cloud data including features
+        data_dict["instance_labels"] = instance_labels.astype(np.int32) # point cloud data including features
         data_dict["lang_feat"] = lang_feat.astype(np.float32) # language feature vectors
         data_dict["lang_len"] = np.array(lang_len).astype(np.int64) # length of each description
         data_dict["center_label"] = target_bboxes.astype(np.float32)[:,0:3] # (MAX_NUM_OBJ, 3) for GT box center XYZ
@@ -225,11 +231,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["object_cat"] = np.array(self.raw2label[object_name]).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
-        data_dict["pt_to_label"] ={}
 
-        for i in range(len(scene_objects)):
-            for point in scene_objects[i]:
-                data_dict["pt_to_label"][point[0:3]] = data_dict["sem_cls_label"][i]
 
         return data_dict
 
@@ -237,36 +239,73 @@ class ScannetReferenceDataset(Dataset):
         locs = []
         locs_float = []
         feats = []
-        # labels = []
-        # instance_labels = []
+        labels = []
+        instance_labels = []
         batch_offsets = [0]
         batch_size = len(id)
 
         for i, idx in enumerate(id):
-            num_points = id[i]['point_clouds'].shape[0]
             xyz = id[i]['point_clouds'][:, 0:3]
             rgb = id[i]['point_clouds'][:, 3:6]
+            lab = id[i]['semantic_labels']
+            inst_lab = id[i]['instance_labels']
+            scale = cfg.scale
+
+            xyz_middle = self.dataAugment(xyz, True, True, True)
+            xyz = xyz_middle * scale
+            xyz = self.elastic(xyz, 6 * scale // 50, 40 * scale / 50)
+            xyz = self.elastic(xyz, 20 * scale // 50, 160 * scale/ 50)
+            xyz -= xyz.min(0)
+            xyz, valid_idxs = self.crop(xyz)
+            xyz = xyz[valid_idxs]
+            rgb = rgb[valid_idxs]
+            lab = lab[valid_idxs]
+
             locs.append(torch.cat([torch.LongTensor(xyz.shape[0], 1).fill_(i), torch.from_numpy(xyz).long()], 1))
             feats.append(torch.from_numpy(rgb) + torch.randn(3) * 0.1)
             batch_offsets.append(batch_offsets[-1] + xyz.shape[0])
             locs_float.append(torch.from_numpy(xyz))
-            # labels.append(torch.from_numpy(label))
-            # instance_labels.append(torch.from_numpy(instance_label))
+            labels.append(torch.from_numpy(lab))
+            instance_labels.append(torch.from_numpy(inst_lab))
 
         ### merge all the scenes in the batchd
         batch_offsets = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
         locs = torch.cat(locs, 0)                                # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
         locs_float = torch.cat(locs_float, 0).to(torch.float32)  # float (N, 3)
+        labels = torch.cat(labels, 0).to(torch.int32)
+        instance_labels = torch.cat(instance_labels, 0).to(torch.int32)
         feats = torch.cat(feats, 0)                              # float (N, C)
+        full_scale = cfg.full_scale
+        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), full_scale[0], None)  # long (3)
 
 
         voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, batch_size, 4)
 
         return {'locs': locs, 'voxel_locs': voxel_locs, 'p2v_map': p2v_map, 'v2p_map': v2p_map, 'feats': feats,
                 'batch_offsets': batch_offsets, 'locs_float': locs_float,
-                # 'labels': labels, 'instance_labels': instance_labels
+                'labels': labels, 'instance_labels': instance_labels, 'spatial_shape': spatial_shape
                 }
-    
+
+    def elastic(self, x, gran, mag):
+        blur0 = np.ones((3, 1, 1)).astype('float32') / 3
+        blur1 = np.ones((1, 3, 1)).astype('float32') / 3
+        blur2 = np.ones((1, 1, 3)).astype('float32') / 3
+
+        bb = np.abs(x).max(0).astype(np.int32)//gran + 3
+        noise = [np.random.randn(bb[0], bb[1], bb[2]).astype('float32') for _ in range(3)]
+        noise = [scipy.ndimage.filters.convolve(n, blur0, mode='constant', cval=0) for n in noise]
+        noise = [scipy.ndimage.filters.convolve(n, blur1, mode='constant', cval=0) for n in noise]
+        noise = [scipy.ndimage.filters.convolve(n, blur2, mode='constant', cval=0) for n in noise]
+        noise = [scipy.ndimage.filters.convolve(n, blur0, mode='constant', cval=0) for n in noise]
+        noise = [scipy.ndimage.filters.convolve(n, blur1, mode='constant', cval=0) for n in noise]
+        noise = [scipy.ndimage.filters.convolve(n, blur2, mode='constant', cval=0) for n in noise]
+        ax = [np.linspace(-(b-1)*gran, (b-1)*gran, b) for b in bb]
+        interp = [scipy.interpolate.RegularGridInterpolator(ax, n, bounds_error=0, fill_value=0) for n in noise]
+        def g(x_):
+            return np.hstack([i(x_)[:,None] for i in interp])
+        return x + g(x) * mag
+
+
     def _get_raw2label(self):
         # mapping
         scannet_labels = DC.type2class.keys()
@@ -322,6 +361,37 @@ class ScannetReferenceDataset(Dataset):
 
         return lang
 
+    def dataAugment(self, xyz, jitter=False, flip=False, rot=False):
+        m = np.eye(3)
+        if jitter:
+            m += np.random.randn(3, 3) * 0.1
+        if flip:
+            m[0][0] *= np.random.randint(0, 2) * 2 - 1  # flip x randomly
+        if rot:
+            theta = np.random.rand() * 2 * math.pi
+            m = np.matmul(m, [[math.cos(theta), math.sin(theta), 0], [-math.sin(theta), math.cos(theta), 0], [0, 0, 1]])  # rotation
+        return np.matmul(xyz, m)
+
+
+    def crop(self, xyz):
+        '''
+        :param xyz: (n, 3) >= 0
+        '''
+        xyz_offset = xyz.copy()
+        valid_idxs = (xyz_offset.min(1) >= 0)
+        assert valid_idxs.sum() == xyz.shape[0]
+        full_scale = cfg.full_scale
+        max_npoint = cfg.max_npoint
+        full_scale = np.array([full_scale[1]] * 3)
+        room_range = xyz.max(0) - xyz.min(0)
+        while (valid_idxs.sum() > max_npoint):
+            offset = np.clip(full_scale - room_range + 0.001, None, 0) * np.random.rand(3)
+            xyz_offset = xyz + offset
+            valid_idxs = (xyz_offset.min(1) >= 0) * ((xyz_offset < full_scale).sum(1) == 3)
+            full_scale[:2] -= 32
+
+        return xyz_offset, valid_idxs
+
 
     def _load_data(self):
         print("loading data...")
@@ -339,6 +409,7 @@ class ScannetReferenceDataset(Dataset):
             self.scene_data[scene_id]["instance_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_ins_label.npy")
             self.scene_data[scene_id]["semantic_labels"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_sem_label.npy")
             self.scene_data[scene_id]["instance_bboxes"] = np.load(os.path.join(CONF.PATH.SCANNET_DATA, scene_id)+"_bbox.npy")
+            self.scene_data[scene_id]["scene_objects"] = read_scene_objects(scene_id)
 
         # # load multiview database
         # if self.use_multiview:

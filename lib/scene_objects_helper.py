@@ -1,14 +1,13 @@
 import numpy as np
 import os
-
 from lib.config import CONF
-from lib.o3d_helper import visualize_numpy_array
-
-
-def visualize_scene_objects(scene_id):
-    scene_objects = read_scene_objects(scene_id)
-    for scene_object in scene_objects:
-        visualize_numpy_array(scene_object)
+# from lib.o3d_helper import visualize_numpy_array
+#
+#
+# def visualize_scene_objects(scene_id):
+#     scene_objects = read_scene_objects(scene_id)
+#     for scene_object in scene_objects:
+#         visualize_numpy_array(scene_object)
 
 
 def read_scene_objects(scene_id):

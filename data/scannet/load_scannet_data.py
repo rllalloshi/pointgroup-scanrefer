@@ -13,6 +13,7 @@ import pdb
 import numpy as np
 import scannet_utils
 
+
 def read_aggregation(filename):
     assert os.path.isfile(filename)
     object_id_to_segs = {}
@@ -53,7 +54,7 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
     instance label as 1-#instance,
     box as (cx,cy,cz,dx,dy,dz,semantic_label)
     """
-    label_map = scannet_utils.read_label_mapping(label_map_file, label_from='raw_category', label_to='nyu40id')    
+    label_map = scannet_utils.read_label_mapping(label_map_file, label_from='raw_category', label_to='nyu40id')
     # mesh_vertices = scannet_utils.read_mesh_vertices_rgb(mesh_file)
     mesh_vertices = scannet_utils.read_mesh_vertices_rgb_normal(mesh_file)
 
@@ -89,10 +90,17 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
                 object_id_to_label_id[object_id] = label_ids[verts][0]
     # instance_bboxes = np.zeros((num_instances,7))
     instance_bboxes = np.zeros((num_instances,8)) # also include object id
+    scene_objects = []
+    #visualize_numpy_array(mesh_vertices)
     for obj_id in object_id_to_segs:
         label_id = object_id_to_label_id[obj_id]
-        obj_pc = mesh_vertices[instance_ids==obj_id, 0:3]
+        obj_pc = mesh_vertices[instance_ids == obj_id, 0:3]
         if len(obj_pc) == 0: continue
+
+        object_points = mesh_vertices[instance_ids == obj_id]
+        #visualize_numpy_array(object_points)
+        scene_objects.append(object_points)
+
         # Compute axis aligned box
         # An axis aligned bounding box is parameterized by
         # (cx,cy,cz) and (dx,dy,dz) and label id
@@ -106,15 +114,17 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
         zmax = np.max(obj_pc[:,2])
         bbox = np.array([(xmin+xmax)/2, (ymin+ymax)/2, (zmin+zmax)/2, xmax-xmin, ymax-ymin, zmax-zmin, label_id, obj_id-1]) # also include object id
         # NOTE: this assumes obj_id is in 1,2,3,.,,,.NUM_INSTANCES
-        instance_bboxes[obj_id-1,:] = bbox 
+        instance_bboxes[obj_id-1,:] = bbox
 
     if output_file is not None:
+        for i in range(len(scene_objects)):
+            np.save(output_file + '_object_' + str(i) + '.npy', scene_objects[i])
         np.save(output_file+'_vert.npy', mesh_vertices)
         np.save(output_file+'_sem_label.npy', label_ids)
         np.save(output_file+'_ins_label.npy', instance_ids)
         np.save(output_file+'_bbox.npy', instance_bboxes)
 
-    return mesh_vertices, label_ids, instance_ids, instance_bboxes, object_id_to_label_id
+    return mesh_vertices, label_ids, instance_ids, instance_bboxes, object_id_to_label_id, scene_objects
 
 def main():
     parser = argparse.ArgumentParser()
