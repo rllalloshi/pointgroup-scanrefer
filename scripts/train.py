@@ -65,7 +65,8 @@ def get_solver(args, dataloader, stamp):
     model = get_model(args)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
     lang_cls_flag = not args.no_lang_cls
-    solver = Solver(model, DC, dataloader, optimizer, stamp, args.val_step, lang_cls_flag, (not args.no_max_iou))
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20000, gamma=0.7)
+    solver = Solver(model, DC, dataloader, optimizer, stamp, scheduler, args.val_step, lang_cls_flag, (not args.no_max_iou))
     num_params = get_num_params(model)
 
     return solver, num_params
@@ -141,14 +142,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", type=str, help="tag for the training, e.g. cuda_wl", default="")
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
-    parser.add_argument("--batch_size", type=int, help="batch size", default=8)
+    parser.add_argument("--batch_size", type=int, help="batch size", default=16)
     parser.add_argument("--epoch", type=int, help="number of epochs", default=10)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=1)
-    parser.add_argument("--val_step", type=int, help="iterations of validating", default=5000)
+    parser.add_argument("--val_step", type=int, help="iterations of validating", default=2000)
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-5)
     parser.add_argument('--num_points', type=int, default=40000, help='Point Number [default: 40000]')
-    parser.add_argument('--num_proposals', type=int, default=128, help='Proposal number [default: 128]')
+    parser.add_argument('--num_proposals', type=int, default=64, help='Proposal number [default: 64]')
     parser.add_argument('--num_scenes', type=int, default=-1, help='Number of scenes [default: -1]')
     parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
     parser.add_argument('--no_augment', action='store_true', help='Do NOT use height signal in input.')

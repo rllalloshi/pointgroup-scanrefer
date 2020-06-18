@@ -77,7 +77,7 @@ BEST_REPORT_TEMPLATE = """
 """
 
 class Solver():
-    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, use_lang_classifier=True, use_max_iou=False):
+    def __init__(self, model, config, dataloader, optimizer, stamp, scheduler, val_step=10, use_lang_classifier=True, use_max_iou=False):
         self.epoch = 0                    # set in __call__
         self.verbose = 0                  # set in __call__
         
@@ -85,6 +85,7 @@ class Solver():
         self.config = config
         self.dataloader = dataloader
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.stamp = stamp
         self.val_step = val_step
         self.use_lang_classifier = use_lang_classifier
@@ -162,6 +163,7 @@ class Solver():
         for epoch_id in range(epoch):
             try:
                 self._log("epoch {} starting...".format(epoch_id + 1))
+                self._log('lr: {1}'.format(epoch, self.optimizer.param_groups[0]['lr']))
 
                 # feed 
                 self._feed(self.dataloader["train"], "train", epoch_id)
@@ -202,6 +204,7 @@ class Solver():
         self.optimizer.zero_grad()
         self._running_log["loss"].backward()
         self.optimizer.step()
+        self.scheduler.step()
 
     def _compute_loss(self, data_dict):
         _, data_dict = get_loss(data_dict, self.config, True, self.use_lang_classifier, self.use_max_iou)

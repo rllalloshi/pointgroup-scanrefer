@@ -30,30 +30,30 @@ class Pointnet2Backbone(nn.Module):
             PointnetSAModule(
                 npoint=64,
                 radius=0.2,
-                nsample=16,
-                mlp=[input_feature_dim, 32, 32, 64],
+                nsample=8,
+                mlp=[input_feature_dim, 16, 32],
                 use_xyz=True,
             )
         )
 
-        self.SA_modules.append(
+        '''self.SA_modules.append(
             PointnetSAModule(
-                npoint=64,
+                npoint=32,
                 radius=0.4,
-                nsample=16,
-                mlp=[64, 64, 64, 128],
+                nsample=8,
+                mlp=[32, 64],
                 use_xyz=True,
             )
-        )
+        )'''
         self.SA_modules.append(
             PointnetSAModule(
-                mlp=[128, 128, 256],
+                mlp=[32, 64],
                 use_xyz=True,
             )
         )
 
         self.fc_layer = nn.Sequential(
-            nn.Linear(256, num_class),
+            nn.Linear(64, num_class),
         )
 
     def _break_up_pc(self, pc):

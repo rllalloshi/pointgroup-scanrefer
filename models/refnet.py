@@ -26,7 +26,7 @@ class RefNet(nn.Module):
         self.use_lang_classifier = use_lang_classifier
 
         # Backbone point feature learning
-        self.backbone_net = Pointnet2Backbone(num_class=self.num_class, input_feature_dim=self.input_feature_dim - 1)
+        self.backbone_net = Pointnet2Backbone(num_class=self.num_class, input_feature_dim=6)
         #self.object_classifier = nn.Sequential(
         #    nn.Linear(128, 256),
         #    nn.ReLU(),
@@ -66,6 +66,7 @@ class RefNet(nn.Module):
         data_dict['batch_objects'] = batch
 
         data_dict = self.backbone_net(data_dict)
+
 
         batch_features = data_dict["object_features"].view(batch_size, num_objects, -1)
 

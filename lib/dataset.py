@@ -24,7 +24,7 @@ from lib.o3d_helper import visualize_numpy_array
 
 # data setting
 DC = ScannetDatasetConfig()
-MAX_NUM_OBJ = 128
+MAX_NUM_OBJ = 64
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 MAX_OBJ_POINTS = 1024
 
@@ -219,11 +219,11 @@ class ScannetReferenceDataset(Dataset):
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64)  # 0/1 reference labels for each object bbox
-        data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
-        data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
-        data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)
-        data_dict["ref_size_class_label"] = np.array(int(ref_size_class_label)).astype(np.int64)
-        data_dict["ref_size_residual_label"] = ref_size_residual_label.astype(np.float32)
+        #data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
+        #data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
+        #data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)
+        #data_dict["ref_size_class_label"] = np.array(int(ref_size_class_label)).astype(np.int64)
+        #data_dict["ref_size_residual_label"] = ref_size_residual_label.astype(np.float32)
         data_dict["object_id"] = np.array(int(object_id)).astype(np.int64)
         data_dict["ann_id"] = np.array(int(ann_id)).astype(np.int64)
         data_dict["object_cat"] = np.array(self.raw2label[object_name]).astype(np.int64)
@@ -231,17 +231,18 @@ class ScannetReferenceDataset(Dataset):
         data_dict["load_time"] = time.time() - start
 
         gt_scene_objects_mask = np.zeros((MAX_NUM_OBJ))
-        gt_scene_objects = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 6))
+        gt_scene_objects = np.zeros((MAX_NUM_OBJ, MAX_OBJ_POINTS, 9))
         centers = np.zeros((MAX_NUM_OBJ, 3))
         for i in range(len(scene_objects)):
-            scene_object = scene_objects[i]
-            new_scene_object = random_sampling(scene_object, MAX_OBJ_POINTS)
-            new_scene_object = new_scene_object[:, 0:6]
-            new_scene_object[:, 3:] = (new_scene_object[:, 3:] - MEAN_COLOR_RGB) / 256.0
-            centers[i] = target_bboxes.astype(np.float32)[i, 0:3]
-            #visualize_numpy_array(new_scene_object, False)
-            gt_scene_objects[i] = new_scene_object
-            gt_scene_objects_mask[i] = 1
+            if i < MAX_NUM_OBJ:
+                scene_object = scene_objects[i]
+                new_scene_object = random_sampling(scene_object, MAX_OBJ_POINTS)
+                new_scene_object = new_scene_object[:, 0:9]
+                new_scene_object[:, 3:6] = (new_scene_object[:, 3:6] - MEAN_COLOR_RGB) / 256.0
+                centers[i] = target_bboxes.astype(np.float32)[i, 0:3]
+                #visualize_numpy_array(new_scene_object, False)
+                gt_scene_objects[i] = new_scene_object
+                gt_scene_objects_mask[i] = 1
 
         data_dict["gt_scene_objects"] = gt_scene_objects.astype(np.float32)
         data_dict["gt_scene_objects_mask"] = gt_scene_objects_mask.astype(np.float32)
