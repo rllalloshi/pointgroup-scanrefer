@@ -81,8 +81,14 @@ class ScannetReferenceDataset(Dataset):
         instance_labels = self.scene_data[scene_id]["instance_labels"]
         semantic_labels = self.scene_data[scene_id]["semantic_labels"]
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
-        scene_objects = self.scene_data[scene_id]["scene_objects"]
+        #scene_objects = self.scene_data[scene_id]["scene_objects"]
 
+        point_cloud = mesh_vertices[:, 0:6]
+        point_cloud[:, :3] = point_cloud[:, :3] - point_cloud[:, :3].mean(0)
+        point_cloud[:, 3:] = point_cloud[:, 3:] / 127.5 - 1
+        pcl_color = point_cloud[:, 3:]
+
+        '''
         if not self.use_color:
             point_cloud = mesh_vertices[:,0:3] # do not use color for now
             pcl_color = mesh_vertices[:,3:6]
@@ -90,11 +96,15 @@ class ScannetReferenceDataset(Dataset):
             point_cloud = mesh_vertices[:,0:6] 
             point_cloud[:,3:] = (point_cloud[:,3:]-MEAN_COLOR_RGB)/256.0
             pcl_color = point_cloud[:,3:]
-        
+        '''
+
+        '''
         if self.use_normal:
             normals = mesh_vertices[:,6:9]
             point_cloud = np.concatenate([point_cloud, normals],1)
+        '''
 
+        '''
         if self.use_multiview:
             # load multiview database
             pid = mp.current_process().pid
@@ -103,11 +113,14 @@ class ScannetReferenceDataset(Dataset):
 
             multiview = self.multiview_data[pid][scene_id]
             point_cloud = np.concatenate([point_cloud, multiview],1)
+        '''
 
+        '''
         if self.use_height:
             floor_height = np.percentile(point_cloud[:,2],0.99)
             height = point_cloud[:,2] - floor_height
             point_cloud = np.concatenate([point_cloud, np.expand_dims(height, 1)],1) 
+        '''
             
         # ------------------------------- LABELS ------------------------------        
         target_bboxes = np.zeros((MAX_NUM_OBJ, 6))
@@ -118,15 +131,17 @@ class ScannetReferenceDataset(Dataset):
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
         ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
         
-        point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)        
+        '''point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)        
         instance_labels = instance_labels[choices]
         semantic_labels = semantic_labels[choices]
         pcl_color = pcl_color[choices]
-        
+        '''
+
         num_bbox = instance_bboxes.shape[0] if instance_bboxes.shape[0] < MAX_NUM_OBJ else MAX_NUM_OBJ
         target_bboxes_mask[0:num_bbox] = 1
         target_bboxes[0:num_bbox,:] = instance_bboxes[:MAX_NUM_OBJ,0:6]
-        
+
+        '''
         # ------------------------------- DATA AUGMENTATION ------------------------------        
         if self.augment and not self.debug:
             if np.random.random() > 0.5:
@@ -160,8 +175,9 @@ class ScannetReferenceDataset(Dataset):
             # Translation
             point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
 
+        '''
 
-
+        '''
         # compute votes *AFTER* augmentation
         # generate votes
         # Note: since there's no map between bbox instance labels and
@@ -180,7 +196,7 @@ class ScannetReferenceDataset(Dataset):
                 point_votes[ind, :] = center - x
                 point_votes_mask[ind] = 1.0
         # point_votes = np.tile(point_votes, (1, 3)) # make 3 votes identical TODO WTF is that
-
+        '''
 
         class_ind = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:num_bbox,-2]]
         # NOTE: set size class as semantic class. Consider use size2class.
@@ -216,8 +232,8 @@ class ScannetReferenceDataset(Dataset):
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
-        data_dict["vote_label"] = point_votes.astype(np.float32)  #(npoints, 9)
-        data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
+        #data_dict["vote_label"] = point_votes.astype(np.float32)  #(npoints, 9)
+        #data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
@@ -229,7 +245,6 @@ class ScannetReferenceDataset(Dataset):
         data_dict["object_id"] = np.array(int(object_id)).astype(np.int64)
         data_dict["ann_id"] = np.array(int(ann_id)).astype(np.int64)
         data_dict["object_cat"] = np.array(self.raw2label[object_name]).astype(np.int64)
-        data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
 
 

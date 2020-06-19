@@ -388,10 +388,10 @@ def model_fn_decorator(test=False):
         coords_float = batch['locs_float'].cuda()              # (N, 3), float32, cuda
         feats = batch['feats'].cuda()                          # (N, C), float32, cuda
         labels = batch['labels'].cuda()                        # (N), long, cuda
-        # instance_labels = batch['instance_labels'].cuda()      # (N), long, cuda, 0~total_nInst, -100
+        instance_labels = batch['instance_labels'].cuda()      # (N), long, cuda, 0~total_nInst, -100
 
-        # instance_info = batch['instance_info'].cuda()          # (N, 9), float32, cuda, (meanxyz, minxyz, maxxyz)
-        # instance_pointnum = batch['instance_pointnum'].cuda()  # (total_nInst), int, cuda
+        instance_info = batch['instance_info'].cuda()          # (N, 9), float32, cuda, (meanxyz, minxyz, maxxyz)
+        instance_pointnum = batch['instance_pointnum'].cuda()  # (total_nInst), int, cuda
 
         batch_offsets = batch['batch_offsets'].cuda()                # (B + 1), int, cuda
 

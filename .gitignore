@@ -3,6 +3,7 @@ data/ScanRefer*
 data/glove*
 data/scannet/scannet_data
 data/scannet/scans
+/data/scannet/scans_test
 
 # cache
 data/scannet/__pycache__
@@ -19,3 +20,7 @@ lib/pointnet2/pointnet2.egg-info/
 # output
 outputs/
 /scripts/exp/scannetv2/pointgroup/pointgroup_run1_scannet/
+
+
+.idea
+
