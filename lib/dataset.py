@@ -131,11 +131,11 @@ class ScannetReferenceDataset(Dataset):
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
         ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
         
-        '''point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)        
+        point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
         instance_labels = instance_labels[choices]
         semantic_labels = semantic_labels[choices]
         pcl_color = pcl_color[choices]
-        '''
+
 
         num_bbox = instance_bboxes.shape[0] if instance_bboxes.shape[0] < MAX_NUM_OBJ else MAX_NUM_OBJ
         target_bboxes_mask[0:num_bbox] = 1
@@ -184,19 +184,25 @@ class ScannetReferenceDataset(Dataset):
         # pc instance_labels (it had been filtered
         # in the data preparation step) we'll compute the instance bbox
         # from the points sharing the same instance label.
-        point_votes = np.zeros([self.num_points, 3])
+        '''
+        point_votes = np.zeros([self.num_points, 9])
         point_votes_mask = np.zeros(self.num_points)
+        instance_pointnum = []
+
+
         for i_instance in np.unique(instance_labels):
             # find all points belong to that instance
             ind = np.where(instance_labels == i_instance)[0]
+            instance_pointnum.append(ind.size)
             # find the semantic label
             if semantic_labels[ind[0]] in DC.nyu40ids:
                 x = point_cloud[ind,:3]
                 center = 0.5*(x.min(0) + x.max(0))
-                point_votes[ind, :] = center - x
+                point_votes[ind, 0:3] = center
+                point_votes[ind, 3:6] = x.min(0)
+                point_votes[ind, 6:9] = x.min(0)
                 point_votes_mask[ind] = 1.0
-        # point_votes = np.tile(point_votes, (1, 3)) # make 3 votes identical TODO WTF is that
-        '''
+
 
         class_ind = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:num_bbox,-2]]
         # NOTE: set size class as semantic class. Consider use size2class.
@@ -232,8 +238,9 @@ class ScannetReferenceDataset(Dataset):
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
-        #data_dict["vote_label"] = point_votes.astype(np.float32)  #(npoints, 9)
-        #data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
+        data_dict["vote_label"] = point_votes.astype(np.float32)  #(npoints, 9)
+        data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
+        data_dict["instance_pointnum"] =instance_pointnum
         data_dict["pcl_color"] = pcl_color
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
         data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
@@ -256,6 +263,8 @@ class ScannetReferenceDataset(Dataset):
         feats = []
         labels = []
         instance_labels = []
+        instance_infos = []  # (N, 9)
+        instance_pointnum = []
         batch_offsets = [0]
         batch_size = len(id)
 
@@ -264,6 +273,8 @@ class ScannetReferenceDataset(Dataset):
             rgb = id[i]['point_clouds'][:, 3:6]
             lab = id[i]['semantic_labels']
             inst_lab = id[i]['instance_labels']
+            inst_info = id[i]["vote_label"]
+            inst_pointnum = id[i]["instance_pointnum"]
             scale = cfg.scale
 
             xyz_middle = self.dataAugment(xyz, True, True, True)
@@ -281,7 +292,9 @@ class ScannetReferenceDataset(Dataset):
             batch_offsets.append(batch_offsets[-1] + xyz.shape[0])
             locs_float.append(torch.from_numpy(xyz))
             labels.append(torch.from_numpy(lab))
+            instance_infos.append(torch.from_numpy(inst_info))
             instance_labels.append(torch.from_numpy(inst_lab))
+            instance_pointnum.extend(inst_pointnum)
 
         ### merge all the scenes in the batchd
         batch_offsets = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
@@ -292,13 +305,17 @@ class ScannetReferenceDataset(Dataset):
         feats = torch.cat(feats, 0)                              # float (N, C)
         full_scale = cfg.full_scale
         spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), full_scale[0], None)  # long (3)
+        instance_infos = torch.cat(instance_infos, 0).to(torch.float32)
+        instance_pointnum = torch.tensor(instance_pointnum, dtype=torch.int)
+
 
 
         voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, batch_size, 4)
 
         return {'locs': locs, 'voxel_locs': voxel_locs, 'p2v_map': p2v_map, 'v2p_map': v2p_map, 'feats': feats,
                 'batch_offsets': batch_offsets, 'locs_float': locs_float,
-                'labels': labels, 'instance_labels': instance_labels, 'spatial_shape': spatial_shape
+                'labels': labels, 'instance_labels': instance_labels, 'spatial_shape': spatial_shape,  'instance_info': instance_infos,
+                'instance_pointnum': instance_pointnum,
                 }
 
     def elastic(self, x, gran, mag):
