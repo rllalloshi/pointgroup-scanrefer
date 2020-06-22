@@ -102,7 +102,7 @@ class RefModule(nn.Module):
 
 
         # --------- FEATURE FUSION ---------
-        lang_feat = data_dict["lang_feat"]
+        lang_feat = data_dict["lang_feat"].cuda()
         lang_feat = pack_padded_sequence(lang_feat, data_dict["lang_len"], batch_first=True, enforce_sorted=False)
     
         # encode description

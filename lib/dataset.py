@@ -351,6 +351,9 @@ class ScannetReferenceDataset(Dataset):
         ### voxelize
         voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, cfg.batch_size, cfg.mode)
 
+        for key in result:
+            result[key] = torch.from_numpy(np.array(result[key]).squeeze())
+
         result['locs'] = locs
         result['voxel_locs'] = voxel_locs
         result['p2v_map'] = p2v_map
