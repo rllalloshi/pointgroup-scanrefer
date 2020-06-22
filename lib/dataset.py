@@ -358,7 +358,7 @@ class ScannetReferenceDataset(Dataset):
         result['locs_float'] = locs_float
         result['labels'] = labels
         result['instance_labels'] = instance_labels
-        result['instance_infos'] = instance_infos
+        result['instance_info'] = instance_infos
         result['instance_pointnum'] = instance_pointnum
         result['id'] = id
         result['offsets'] = batch_offsets
