@@ -17,7 +17,6 @@ import scipy.ndimage
 import scipy.interpolate
 import math
 from lib.pointgroup_ops.functions import pointgroup_ops
-from lib.scene_objects_helper import read_scene_objects
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from lib.config import CONF
 from lib.util.config import cfg
@@ -277,9 +276,6 @@ class ScannetReferenceDataset(Dataset):
             'object_cat': [],
             'load_time': [],
         }
-
-
-
 
         total_inst_num = 0
         for i, idx in enumerate(id):
