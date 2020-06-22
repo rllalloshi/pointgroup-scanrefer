@@ -59,11 +59,11 @@ class RefNet(nn.Module):
         model_fn = model_fn_decorator()
         ret = model_fn(data_dict, self.backbone_net, 1)
 
-        score_feats, score, proposals_idx, proposals_offset = ret['proposal_scores']
+        score_feats, score, proposals_idx = ret['proposal_scores']
 
         print(f"score_feats {score_feats.shape}")
-        print(f"score_feats {score.shape}")
-        print(f"score_feats {proposals_idx.shape}")
+        print(f"score {score.shape}")
+        print(f"proposals_idx {proposals_idx.shape}")
 
         data_dict = self.rfnet(data_dict['locs'], score_feats, data_dict)
 

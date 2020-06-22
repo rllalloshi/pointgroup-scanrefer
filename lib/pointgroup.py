@@ -6,6 +6,8 @@ Written by Li Jiang
 import torch
 import torch.nn as nn
 import spconv
+import os
+from lib.config import CONF
 from spconv.modules import SparseModule
 import functools
 from collections import OrderedDict
@@ -188,7 +190,7 @@ class PointGroup(nn.Module):
 
         #### load pretrain weights
         if self.pretrain_path is not None:
-            pretrain_dict = torch.load(self.pretrain_path)
+            pretrain_dict = torch.load(os.path.join(CONF.PATH.BASE, self.pretrain_path))
             for m in self.pretrain_module:
                 print("Load pretrained " + m + ": %d/%d" % utils.load_model_param(module_map[m], pretrain_dict, prefix=m))
 
