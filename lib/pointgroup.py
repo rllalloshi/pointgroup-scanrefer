@@ -10,11 +10,10 @@ from spconv.modules import SparseModule
 import functools
 from collections import OrderedDict
 import sys
-import os
 sys.path.append('../../')
-from lib.config import CONF
+
 from lib.pointgroup_ops.functions import pointgroup_ops
-from lib.util import utils
+from util import utils
 
 class ResidualBlock(SparseModule):
     def __init__(self, in_channels, out_channels, norm_fn, indice_key=None):
@@ -189,7 +188,7 @@ class PointGroup(nn.Module):
 
         #### load pretrain weights
         if self.pretrain_path is not None:
-            pretrain_dict = torch.load(os.path.join(CONF.PATH.BASE, self.pretrain_path))
+            pretrain_dict = torch.load(self.pretrain_path)
             for m in self.pretrain_module:
                 print("Load pretrained " + m + ": %d/%d" % utils.load_model_param(module_map[m], pretrain_dict, prefix=m))
 
@@ -279,7 +278,8 @@ class PointGroup(nn.Module):
 
         ret['pt_offsets'] = pt_offsets
 
-
+        #if(epoch > self.prepare_epochs):
+            #### get prooposal clusters
         object_idxs = torch.nonzero(semantic_preds > 1).view(-1)
 
         batch_idxs_ = batch_idxs[object_idxs]
@@ -289,21 +289,14 @@ class PointGroup(nn.Module):
 
         semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
 
-        idx_shift, start_len_shift = pointgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_,
-                                                                      batch_offsets_, self.cluster_radius,
-                                                                      self.cluster_shift_meanActive)
-        proposals_idx_shift, proposals_offset_shift = pointgroup_ops.bfs_cluster(semantic_preds_cpu,
-                                                                                 idx_shift.cpu(),
-                                                                                 start_len_shift.cpu(),
-                                                                                 self.cluster_npoint_thre)
+        idx_shift, start_len_shift = pointgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_shift_meanActive)
+        proposals_idx_shift, proposals_offset_shift = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.cluster_npoint_thre)
         proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1].long()].int()
         # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
         # proposals_offset_shift: (nProposal + 1), int
 
-        idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.cluster_radius,
-                                                          self.cluster_meanActive)
-        proposals_idx, proposals_offset = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(),
-                                                                     self.cluster_npoint_thre)
+        idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_meanActive)
+        proposals_idx, proposals_offset = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.cluster_npoint_thre)
         proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
         # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
         # proposals_offset: (nProposal + 1), int
@@ -314,25 +307,23 @@ class PointGroup(nn.Module):
         proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
 
         #### proposals voxelization again
-        input_feats, inp_map = self.clusters_voxelization(proposals_idx, proposals_offset, output_feats, coords,self.score_fullscale, self.score_scale, self.mode)
+        input_feats, inp_map = self.clusters_voxelization(proposals_idx, proposals_offset, output_feats, coords, self.score_fullscale, self.score_scale, self.mode)
 
         #### score
         score = self.score_unet(input_feats)
         score = self.score_outputlayer(score)
-        score_feats = score.features[inp_map.long()]  # (sumNPoint, C)
+        score_feats = score.features[inp_map.long()] # (sumNPoint, C)
         score_feats = pointgroup_ops.roipool(score_feats, proposals_offset.cuda())  # (nProposal, C)
+        scores = self.score_linear(score_feats)  # (nProposal, 1)
 
-        ret['proposal_scores'] = (
-            score_feats, score,
-            proposals_idx, proposals_offset
-        )
+        ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
 
         return ret
 
 
 def model_fn_decorator(test=False):
     #### config
-    from lib.util.config import cfg
+    from util.config import cfg
 
     #### criterion
     semantic_criterion = nn.CrossEntropyLoss(ignore_index=cfg.ignore_label).cuda()
@@ -390,11 +381,11 @@ def model_fn_decorator(test=False):
         feats = batch['feats'].cuda()                          # (N, C), float32, cuda
         labels = batch['labels'].cuda()                        # (N), long, cuda
         instance_labels = batch['instance_labels'].cuda()      # (N), long, cuda, 0~total_nInst, -100
-        #
+
         instance_info = batch['instance_info'].cuda()          # (N, 9), float32, cuda, (meanxyz, minxyz, maxxyz)
         instance_pointnum = batch['instance_pointnum'].cuda()  # (total_nInst), int, cuda
 
-        batch_offsets = batch['batch_offsets'].cuda()                # (B + 1), int, cuda
+        batch_offsets = batch['offsets'].cuda()                # (B + 1), int, cuda
 
         spatial_shape = batch['spatial_shape']
 
@@ -407,14 +398,16 @@ def model_fn_decorator(test=False):
         ret = model(input_, p2v_map, coords_float, coords[:, 0].int(), batch_offsets, epoch)
         semantic_scores = ret['semantic_scores'] # (N, nClass) float32, cuda
         pt_offsets = ret['pt_offsets']           # (N, 3), float32, cuda
-        proposals_idx, proposals_offset = ret['proposal_scores']
+        scores, proposals_idx, proposals_offset = ret['proposal_scores']
+            # scores: (nProposal, 1) float, cuda
+            # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # proposals_offset: (nProposal + 1), int, cpu
 
         loss_inp = {}
         loss_inp['semantic_scores'] = (semantic_scores, labels)
         loss_inp['pt_offsets'] = (pt_offsets, coords_float, instance_info, instance_labels)
-        loss_inp['proposal_scores'] = (
-            # scores, proposals_idx,
-                                       proposals_offset, instance_pointnum)
+
+        loss_inp['proposal_scores'] = (scores, proposals_idx, proposals_offset, instance_pointnum)
 
         loss, loss_out, infos = loss_fn(loss_inp, epoch)
 
@@ -437,7 +430,8 @@ def model_fn_decorator(test=False):
             for k, v in loss_out.items():
                 meter_dict[k] = (float(v[0]), v[1])
 
-        return loss, preds, visual_dict, meter_dict
+        #return loss, preds, visual_dict, meter_dict
+        return ret
 
 
     def loss_fn(loss_inp, epoch):
