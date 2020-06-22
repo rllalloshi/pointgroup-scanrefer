@@ -255,12 +255,42 @@ class ScannetReferenceDataset(Dataset):
 
         batch_offsets = [0]
 
+        result = {
+            'lang_feat': [],
+            'lang_len': [],
+            'center_label': [],
+            'heading_class_label': [],
+            'heading_residual_label': [],
+            'size_class_label': [],
+            'num_bbox': [],
+            'sem_cls_label': [],
+            'box_label_mask': [],
+            'scan_idx': [],
+            'ref_box_label': [],
+            'ref_center_label': [],
+            'ref_heading_class_label': [],
+            'ref_heading_residual_label': [],
+            'ref_size_class_label': [],
+            'ref_size_residual_label': [],
+            'object_id': [],
+            'ann_id': [],
+            'object_cat': [],
+            'load_time': [],
+        }
+
+
+
+
         total_inst_num = 0
         for i, idx in enumerate(id):
             xyz_origin = id[i]['cords']
             rgb = id[i]['colors']
             label = id[i]['labels']
             instance_label = id[i]['instance_labels']
+
+            for key in result:
+                result[key].append(id[i][key])
+
 
             ### jitter / flip x / rotation
             xyz_middle = self.dataAugment(xyz_origin, True, True, True)
@@ -321,10 +351,21 @@ class ScannetReferenceDataset(Dataset):
         ### voxelize
         voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, cfg.batch_size, cfg.mode)
 
-        return {'locs': locs, 'voxel_locs': voxel_locs, 'p2v_map': p2v_map, 'v2p_map': v2p_map,
-                'locs_float': locs_float, 'feats': feats, 'labels': labels, 'instance_labels': instance_labels,
-                'instance_info': instance_infos, 'instance_pointnum': instance_pointnum,
-                'id': id, 'offsets': batch_offsets, 'spatial_shape': spatial_shape}
+        result['locs'] = locs
+        result['voxel_locs'] = voxel_locs
+        result['p2v_map'] = p2v_map
+        result['v2p_map'] = v2p_map
+        result['locs_float'] = locs_float
+        result['labels'] = labels
+        result['instance_labels'] = instance_labels
+        result['instance_infos'] = instance_infos
+        result['instance_pointnum'] = instance_pointnum
+        result['id'] = id
+        result['offsets'] = batch_offsets
+        result['spatial_shape'] = spatial_shape
+        result['feats'] = feats
+
+        return result
 
     def getInstanceInfo(self, xyz, instance_label):
         '''
