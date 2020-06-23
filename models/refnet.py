@@ -93,7 +93,7 @@ class RefNet(nn.Module):
 
         for x in range(batch_size):
             batch_inds = batch_indices[x]
-            print(f"batch_indx {batch_inds}")
+            # print(f"batch_indx {batch_inds}")
             batch_scores = scores[batch_inds]
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
