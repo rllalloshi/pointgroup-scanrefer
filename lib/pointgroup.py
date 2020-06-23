@@ -318,7 +318,7 @@ class PointGroup(nn.Module):
         score_feats = pointgroup_ops.roipool(score_feats, proposals_offset.cuda())  # (nProposal, C)
         scores = self.score_linear(score_feats)  # (nProposal, 1)
 
-        ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
+        ret['proposal_scores'] = (scores, score_feats, proposals_idx, proposals_offset)
 
         return ret
 
@@ -400,7 +400,8 @@ def model_fn_decorator(test=False):
         ret = model(input_, p2v_map, coords_float, coords[:, 0].int(), batch_offsets, epoch)
         semantic_scores = ret['semantic_scores'] # (N, nClass) float32, cuda
         pt_offsets = ret['pt_offsets']           # (N, 3), float32, cuda
-        scores, proposals_idx, proposals_offset = ret['proposal_scores']
+        scores, score_feats,  proposals_idx, proposals_offset = ret['proposal_scores']
+        ret["batch_offsets"]=batch_offsets
             # scores: (nProposal, 1) float, cuda
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu

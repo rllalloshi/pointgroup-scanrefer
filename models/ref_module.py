@@ -69,6 +69,7 @@ class RefModule(nn.Module):
             nn.Conv1d(in_channels=128 + 128, out_channels=128, kernel_size=1),
             nn.ReLU()
         )
+        self.features_up_proj = nn.Linear(16, 128)
 
         # language classifier
         if use_lang_classifier:
@@ -108,7 +109,7 @@ class RefModule(nn.Module):
         # encode description
         _, lang_feat = self.gru(lang_feat)
         data_dict["lang_emb"] = lang_feat
-        lang_feat = self.lang_sqz(lang_feat.squeeze(0)).unsqueeze(2).repeat(1, 1, self.num_proposal)
+        lang_feat = self.lang_sqz(lang_feat.squeeze(0)).unsqueeze(2).repeat(1, 1, 128)
 
         # classify
         if self.use_lang_classifier:
@@ -116,6 +117,11 @@ class RefModule(nn.Module):
         
         # fuse
         print(f"lang_feat.shape: {lang_feat.shape}")
+
+        bs = features.shape[0]
+        n_prop = features.shape[1]
+        features = self.features_up_proj(features.view(bs*n_prop, -1)).view(bs, n_prop, -1)
+        print(f"features.shape: {features.shape}")
         features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
 
         # --------- REFERENCE PREDICTION ---------

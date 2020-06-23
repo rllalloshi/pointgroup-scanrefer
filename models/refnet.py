@@ -59,12 +59,43 @@ class RefNet(nn.Module):
         model_fn = model_fn_decorator()
         ret = model_fn(data_dict, self.backbone_net, 1)
 
-        score_feats, score, proposals_idx = ret['proposal_scores']
-
+        scores, score_feats,  proposals_idx, proposals_offset = ret['proposal_scores']
+        batch_offsets = ret["batch_offsets"]
+        batch_size =ret["batch_offsets"].shape[0] -1
+        print(f"scores {scores.shape}")
         print(f"score_feats {score_feats.shape}")
-        print(f"score {score.shape}")
         print(f"proposals_idx {proposals_idx.shape}")
+        print(f"proposals_offset {proposals_offset.shape}")
+        print(f"batch_offsets {batch_offsets.shape}")
+        print(f"batch_size {batch_size}")
 
-        data_dict = self.rfnet(data_dict['locs'], score_feats, data_dict)
+        scores = scores.cuda()
+        score_feats = score_feats.cuda()
+        proposals_idx = proposals_idx.cuda()
+        proposals_offset = proposals_offset.cuda()
+        batch_offsets = batch_offsets.cuda()
+
+        batch = torch.zeros(batch_size, 128, 16 )
+        for i in range(batch_size):
+            prop_offs_batch = proposals_offset.clone()
+            prop_offs_batch[ prop_offs_batch  >= batch_offsets[i+1]] = 0
+            prop_offs_batch[ prop_offs_batch < batch_offsets[i]] = 0
+            min = prop_offs_batch.detach().nonzero().squeeze().min()
+            max = prop_offs_batch.detach().nonzero().squeeze().max()
+            print(f"min: {min}")
+            print(f"max: {max}")
+            n_prop = max-min
+            batch_scores = scores[min:max]
+            batch_score_feats = score_feats[min:max, :]
+            _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if n_prop >= 128 else n_prop))
+            batch_score_feats = batch_score_feats[batch_proposals_indices, :] * batch_scores[batch_proposals_indices]
+            if n_prop< 128:
+                padding = torch.zeros(128-n_prop, 16).cuda()
+                batch_score_feats = torch.cat((batch_score_feats, padding))
+            batch[i] = batch_score_feats
+
+        print(f"batch.shape: {batch.shape}")
+        batch = batch.cuda()
+        data_dict = self.rfnet(data_dict['locs'], batch, data_dict)
 
         return data_dict
