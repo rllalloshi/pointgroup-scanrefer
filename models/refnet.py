@@ -72,27 +72,39 @@ class RefNet(nn.Module):
         scores = scores.cuda()
         score_feats = score_feats.cuda()
         proposals_idx = proposals_idx.cuda()
-        proposals_offset = proposals_offset.cuda()
-        batch_offsets = batch_offsets.cuda()
+        proposals_offset =proposals_offset.cpu().numpy()
+        batch_offsets = batch_offsets.cpu().numpy()
+        batch_indices = {}
+
+        for x in range(batch_size):
+            batch_indices[x] = []
 
         batch = torch.zeros(batch_size, 128, 16 )
-        for i in range(batch_size):
-            prop_offs_batch = proposals_offset.clone()
-            prop_offs_batch[ prop_offs_batch  >= batch_offsets[i+1]] = 0
-            prop_offs_batch[ prop_offs_batch < batch_offsets[i]] = 0
-            min = prop_offs_batch.detach().nonzero().squeeze().min()
-            max = prop_offs_batch.detach().nonzero().squeeze().max()
-            print(f"min: {min}")
-            print(f"max: {max}")
-            n_prop = max-min
-            batch_scores = scores[min:max]
-            batch_score_feats = score_feats[min:max, :]
-            _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if n_prop >= 128 else n_prop))
+
+        for x in proposals_offset[:-1]:
+            point_idx_in_proposal = proposals_idx[x][1]
+            batch_idx = 0
+            for i in  range(batch_size):
+                if point_idx_in_proposal < batch_offsets[i+1] and point_idx_in_proposal >= batch_offsets[i]:
+                    batch_idx = i
+                    break
+            cluster_idx = proposals_idx[x][0].int().item()
+            batch_indices[batch_idx].append(cluster_idx)
+
+        for x in range(batch_size):
+            batch_inds = batch_indices[x]
+            print(f"batch_indx {batch_inds}")
+            batch_scores = scores[batch_inds]
+            batch_score_feats = score_feats[batch_inds, :]
+            number_of_object_proposals_in_batch = batch_score_feats.shape[0]
+            print(f"number_of_object_proposals_in_batch {number_of_object_proposals_in_batch}")
+            _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if number_of_object_proposals_in_batch >= 128 else number_of_object_proposals_in_batch))
             batch_score_feats = batch_score_feats[batch_proposals_indices, :] * batch_scores[batch_proposals_indices]
-            if n_prop< 128:
-                padding = torch.zeros(128-n_prop, 16).cuda()
+            if number_of_object_proposals_in_batch < 128:
+                padding = torch.zeros(128 - number_of_object_proposals_in_batch, 16).cuda()
                 batch_score_feats = torch.cat((batch_score_feats, padding))
-            batch[i] = batch_score_feats
+            batch[x] = batch_score_feats
+
 
         print(f"batch.shape: {batch.shape}")
         batch = batch.cuda()
