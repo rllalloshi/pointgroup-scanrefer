@@ -104,7 +104,13 @@ class RefNet(nn.Module):
             batch_score_feats = batch_score_feats[batch_proposals_indices, :] * batch_scores[batch_proposals_indices]
             if number_of_object_proposals_in_batch < 128:
                 padding = torch.zeros(128 - number_of_object_proposals_in_batch, 16).cuda()
-                batch_score_feats = torch.cat((batch_score_feats, padding))
+                try:
+                    batch_score_feats = torch.cat((batch_score_feats, padding))
+                except:
+                    print(f"batch size: {batch_size}")
+                    print(f"padding: {padding.shape}")
+                    print(f"padding: {batch_score_feats.shape}")
+                    batch_score_feats = torch.zeros(128, 16)
             batch[x] = batch_score_feats
 
 
