@@ -25,7 +25,7 @@ from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDataset
 
 # data setting
 DC = ScannetDatasetConfig()
-MAX_NUM_OBJ = 128
+MAX_NUM_OBJ = 256
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 # data path
@@ -252,7 +252,7 @@ class ScannetReferenceDataset(Dataset):
 
         instance_infos = []  # (N, 9)
         instance_pointnum = []  # (total_nInst), int
-        ref_box_labels = torch.zeros(len(id), 128).numpy()
+        ref_box_labels = torch.zeros(len(id), 256).numpy()
 
         batch_offsets = [0]
 

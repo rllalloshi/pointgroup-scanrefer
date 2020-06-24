@@ -100,8 +100,6 @@ class RefModule(nn.Module):
         Returns:
             scores: (B,num_proposal,2+3+NH*2+NS*4) 
         """
-
-
         # --------- FEATURE FUSION ---------
         lang_feat = data_dict["lang_feat"].cuda()
         lang_feat = pack_padded_sequence(lang_feat, data_dict["lang_len"], batch_first=True, enforce_sorted=False)
@@ -109,7 +107,7 @@ class RefModule(nn.Module):
         # encode description
         _, lang_feat = self.gru(lang_feat)
         data_dict["lang_emb"] = lang_feat
-        lang_feat = self.lang_sqz(lang_feat.squeeze(0)).unsqueeze(2).repeat(1, 1, 128)
+        lang_feat = self.lang_sqz(lang_feat.squeeze(0)).unsqueeze(2).repeat(1, 1, self.num_proposal)
 
         # classify
         if self.use_lang_classifier:
@@ -121,6 +119,7 @@ class RefModule(nn.Module):
         bs = features.shape[0]
         n_prop = features.shape[1]
         features = self.features_up_proj(features.view(bs*n_prop, -1)).view(bs, n_prop, -1)
+        features = features.transpose(dim0=1, dim1=2)
         # print(f"features.shape: {features.shape}")
         features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
 
