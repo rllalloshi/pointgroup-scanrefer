@@ -116,18 +116,19 @@ class RefModule(nn.Module):
             data_dict["lang_scores"] = self.lang_cls(lang_feat[:, :, 0])
         
         # fuse
-        print(f"lang_feat.shape: {lang_feat.shape}")
+        # print(f"lang_feat.shape: {lang_feat.shape}")
 
         bs = features.shape[0]
         n_prop = features.shape[1]
         features = self.features_up_proj(features.view(bs*n_prop, -1)).view(bs, n_prop, -1)
-        print(f"features.shape: {features.shape}")
+        # print(f"features.shape: {features.shape}")
         features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
 
         # --------- REFERENCE PREDICTION ---------
         # masked_features = features * data_dict['objectness_scores'].max(2)[1].float().unsqueeze(1).repeat(1, 128, 1)
         
         data_dict['cluster_ref'] = self.conv4(features).squeeze(1)
-        
+
+        # print(f"data_dict['cluster_ref']: {data_dict['cluster_ref'].shape}")
         return data_dict
 

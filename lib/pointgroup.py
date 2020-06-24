@@ -398,40 +398,9 @@ def model_fn_decorator(test=False):
         input_ = spconv.SparseConvTensor(voxel_feats, voxel_coords.int(), spatial_shape, cfg.batch_size)
 
         ret = model(input_, p2v_map, coords_float, coords[:, 0].int(), batch_offsets, epoch)
-        semantic_scores = ret['semantic_scores'] # (N, nClass) float32, cuda
-        pt_offsets = ret['pt_offsets']           # (N, 3), float32, cuda
-        scores, score_feats,  proposals_idx, proposals_offset = ret['proposal_scores']
         ret["batch_offsets"]=batch_offsets
-            # scores: (nProposal, 1) float, cuda
-            # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int, cpu
-
-        loss_inp = {}
-        loss_inp['semantic_scores'] = (semantic_scores, labels)
-        loss_inp['pt_offsets'] = (pt_offsets, coords_float, instance_info, instance_labels)
-
-        loss_inp['proposal_scores'] = (scores, proposals_idx, proposals_offset, instance_pointnum)
-
-        loss, loss_out, infos = loss_fn(loss_inp, epoch)
-
-        ##### accuracy / visual_dict / meter_dict
-        with torch.no_grad():
-            preds = {}
-            preds['semantic'] = semantic_scores
-            preds['pt_offsets'] = pt_offsets
-            if(epoch > cfg.prepare_epochs):
-                preds['score'] = scores
-                preds['proposals'] = (proposals_idx, proposals_offset)
-
-            visual_dict = {}
-            visual_dict['loss'] = loss
-            for k, v in loss_out.items():
-                visual_dict[k] = v[0]
-
-            meter_dict = {}
-            meter_dict['loss'] = (loss.item(), coords.shape[0])
-            for k, v in loss_out.items():
-                meter_dict[k] = (float(v[0]), v[1])
+        ret["instance_info"] = instance_info
+        ret["ref_box_labels"] =  batch['ref_box_labels']
 
         #return loss, preds, visual_dict, meter_dict
         return ret

@@ -178,18 +178,18 @@ class ScannetReferenceDataset(Dataset):
         instance_pointnum = []
 
 
-        for i_instance in np.unique(instance_labels):
-            # find all points belong to that instance
-            ind = np.where(instance_labels == i_instance)[0]
-            instance_pointnum.append(ind.size)
-            # find the semantic label
-            if semantic_labels[ind[0]] in DC.nyu40ids:
-                x = point_cloud[ind,:3]
-                center = 0.5*(x.min(0) + x.max(0))
-                point_votes[ind, 0:3] = center
-                point_votes[ind, 3:6] = x.min(0)
-                point_votes[ind, 6:9] = x.min(0)
-                point_votes_mask[ind] = 1.0
+        # for i_instance in np.unique(instance_labels):
+        #     # find all points belong to that instance
+        #     ind = np.where(instance_labels == i_instance)[0]
+        #     instance_pointnum.append(ind.size)
+        #     # find the semantic label
+        #     if semantic_labels[ind[0]] in DC.nyu40ids:
+        #         x = point_cloud[ind,:3]
+        #         center = 0.5*(x.min(0) + x.max(0))
+        #         point_votes[ind, 0:3] = center
+        #         point_votes[ind, 3:6] = x.min(0)
+        #         point_votes[ind, 6:9] = x.min(0)
+        #         point_votes_mask[ind] = 1.0
 
         '''
         class_ind = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:num_bbox,-2]]
@@ -227,13 +227,14 @@ class ScannetReferenceDataset(Dataset):
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
-        data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
-        data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
-        data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
-        data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
-        data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)
-        data_dict["ref_size_class_label"] = np.array(int(ref_size_class_label)).astype(np.int64)
-        data_dict["ref_size_residual_label"] = ref_size_residual_label.astype(np.float32)
+        ref_box_label_np = ref_box_label.astype(np.int64)
+        data_dict["ref_box_label"] = ref_box_label_np # 0/1 reference labels for each object bbox
+        data_dict["ref_box_label"] = ref_box_label_np # 0/1 reference labels for each object bbox
+        # data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
+        # data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
+        # data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)
+        # data_dict["ref_size_class_label"] = np.array(int(ref_size_class_label)).astype(np.int64)
+        # data_dict["ref_size_residual_label"] = ref_size_residual_label.astype(np.float32)
         data_dict["object_id"] = np.array(int(object_id)).astype(np.int64)
         data_dict["ann_id"] = np.array(int(ann_id)).astype(np.int64)
         data_dict["object_cat"] = np.array(self.raw2label[object_name]).astype(np.int64)
@@ -251,6 +252,7 @@ class ScannetReferenceDataset(Dataset):
 
         instance_infos = []  # (N, 9)
         instance_pointnum = []  # (total_nInst), int
+        ref_box_labels = torch.zeros(len(id), 128).numpy()
 
         batch_offsets = [0]
 
@@ -266,11 +268,11 @@ class ScannetReferenceDataset(Dataset):
             'box_label_mask': [],
             'scan_idx': [],
             'ref_box_label': [],
-            'ref_center_label': [],
-            'ref_heading_class_label': [],
-            'ref_heading_residual_label': [],
-            'ref_size_class_label': [],
-            'ref_size_residual_label': [],
+            # 'ref_center_label': [],
+            # 'ref_heading_class_label': [],
+            # 'ref_heading_residual_label': [],
+            # 'ref_size_class_label': [],
+            # 'ref_size_residual_label': [],
             'object_id': [],
             'ann_id': [],
             'object_cat': [],
@@ -283,6 +285,7 @@ class ScannetReferenceDataset(Dataset):
             rgb = id[i]['colors']
             label = id[i]['labels']
             instance_label = id[i]['instance_labels']
+            ref_box_labels[i] = id[i]['ref_box_label']
 
             for key in result:
                 result[key].append(id[i][key])
@@ -363,6 +366,7 @@ class ScannetReferenceDataset(Dataset):
         result['offsets'] = batch_offsets
         result['spatial_shape'] = spatial_shape
         result['feats'] = feats
+        result['ref_box_labels'] = ref_box_labels
 
         return result
 
