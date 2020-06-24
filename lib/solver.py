@@ -34,7 +34,7 @@ EPOCH_REPORT_TEMPLATE = """
 [train] train_ref_loss: {train_ref_loss}
 [train] train_lang_loss: {train_lang_loss}
 [train] train_ref_acc: {train_ref_acc}
-[train] train_obj_acc: {train_obj_acc}
+[train] train_lang_acc: {train_lang_acc}
 """
 
 BEST_REPORT_TEMPLATE = """
@@ -44,7 +44,7 @@ BEST_REPORT_TEMPLATE = """
 [loss] ref_loss: {ref_loss}
 [loss] lang_loss: {lang_loss}
 [acc] ref_acc: {ref_acc}
-[acc] obj_acc: {obj_acc}
+[acc] lang_acc: {lang_acc}
 """
 
 class Solver():

@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 import numpy as np
 import sys
 import os
@@ -81,12 +83,12 @@ class RefNet(nn.Module):
         for x in range(batch_size):
             batch_indices[x] = []
 
-        batch = torch.zeros(batch_size, 128, 16 )
+        batch = torch.zeros(batch_size, 128, 16)
 
         for x in proposals_offset[:-1]:
             point_idx_in_proposal = proposals_idx[x][1]
             batch_idx = 0
-            for i in  range(batch_size):
+            for i in range(batch_size):
                 if point_idx_in_proposal < batch_offsets[i+1] and point_idx_in_proposal >= batch_offsets[i]:
                     batch_idx = i
                     break
@@ -99,12 +101,15 @@ class RefNet(nn.Module):
             batch_scores = scores[batch_inds]
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
-            # print(f"number_of_object_proposals_in_batch {number_of_object_proposals_in_batch}")
-            _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if number_of_object_proposals_in_batch >= 128 else number_of_object_proposals_in_batch))
-            batch_score_feats = batch_score_feats[batch_proposals_indices, :] * batch_scores[batch_proposals_indices]
+            print(f"number_of_object_proposals_in_batch {number_of_object_proposals_in_batch}")
+            #_, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if number_of_object_proposals_in_batch >= 128 else number_of_object_proposals_in_batch))
+            #print('batch_score_feats.shape 0' + str(batch_score_feats.shape))
+            batch_score_feats = batch_score_feats * batch_scores
+            if number_of_object_proposals_in_batch > 128:
+                batch_score_feats = batch_score_feats[0:128, :]
             if number_of_object_proposals_in_batch < 128:
-                padding = torch.zeros(128 - number_of_object_proposals_in_batch, 16).cuda()
-                batch_score_feats = torch.cat((batch_score_feats, padding))
+                print('batch_score_feats.shape 1' + str(batch_score_feats.shape))
+                batch_score_feats = F.pad(batch_score_feats, [0, 0, 0, 128 - number_of_object_proposals_in_batch])
             batch[x] = batch_score_feats
 
 
