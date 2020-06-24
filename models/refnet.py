@@ -61,7 +61,7 @@ class RefNet(nn.Module):
 
         scores, score_feats,  proposals_idx, proposals_offset = ret['proposal_scores']
         batch_offsets = ret["batch_offsets"]
-        batch_size =ret["batch_offsets"].shape[0] -1
+        batch_size = ret["batch_offsets"].shape[0] -1
         # # gt_centers = ret["instance_info"][:,0:3]
         # print(f"scores {scores.shape}")
         # print(f"score_feats {score_feats.shape}")

@@ -141,7 +141,7 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     """
 
     # Reference loss
-    ref_loss, lang_loss= compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
+    ref_loss, lang_loss = compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
     data_dict["ref_loss"] = ref_loss
     data_dict["lang_loss"] = lang_loss
 
@@ -149,5 +149,25 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     
     loss *= 10 # amplify
     data_dict['loss'] = loss
+
+    with torch.no_grad():
+        # reference accuracy
+        cluster_ref = data_dict["cluster_ref"]
+        cluster_preds = torch.argmax(cluster_ref, dim=1).long().unsqueeze(1).repeat(1, cluster_ref.shape[1])
+        cluster_labels = data_dict["ref_box_label"]
+        preds = torch.zeros(cluster_ref.shape).cuda()
+        preds = preds.scatter_(1, cluster_preds, 1)
+        cluster_preds = preds.cuda()
+        cluster_labels = cluster_labels.float().cuda()
+        corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
+        labels = torch.ones(corrects.shape[0]).cuda()
+        ref_acc = (corrects / (labels + 1e-8)).cpu().numpy()
+
+
+        object_cat = data_dict["object_cat"].cuda()
+
+        data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == object_cat).float().mean()
+        data_dict["ref_acc"] = ref_acc
+
 
     return loss, data_dict
