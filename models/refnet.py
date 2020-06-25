@@ -78,7 +78,7 @@ class RefNet(nn.Module):
         scores = scores.cuda()
         score_feats = score_feats.cuda()
         proposals_idx = proposals_idx.cuda()
-        proposals_offset =proposals_offset.cpu().numpy()
+        proposals_offset = proposals_offset.cpu().numpy()
         batch_offsets = batch_offsets.cpu().numpy()
         batch_indices = {}
 
@@ -86,6 +86,7 @@ class RefNet(nn.Module):
             batch_indices[x] = []
 
         batch = torch.zeros(batch_size, self.num_proposal, 16)
+        proposal_mask = torch.ones(batch_size, self.num_proposal)
         gt_proposals = []
 
         for x in proposals_offset[:-1]:
@@ -111,12 +112,12 @@ class RefNet(nn.Module):
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
 
-
             if number_of_object_proposals_in_batch > self.num_proposal:
                 _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=self.num_proposal)
                 batch_score_feats = batch_score_feats[batch_proposals_indices, :]
                 batch_scores = batch_scores[batch_proposals_indices]
             if number_of_object_proposals_in_batch < self.num_proposal:
+                proposal_mask[x, number_of_object_proposals_in_batch:self.num_proposal] = 0
                 batch_score_feats = F.pad(batch_score_feats, [0, 0, 0, self.num_proposal - number_of_object_proposals_in_batch])
                 batch_scores = F.pad(batch_scores, [0, 0, 0, self.num_proposal - number_of_object_proposals_in_batch])
             batch_score_feats = batch_score_feats * batch_scores
@@ -124,6 +125,7 @@ class RefNet(nn.Module):
 
         # print(f"batch.shape: {batch.shape}")
         batch = batch.cuda()
+        data_dict['proposal_mask'] = proposal_mask
         data_dict['gt_proposals'] = gt_proposals
         data_dict['pg_loss'] = ret['pg_loss']
         data_dict = self.rfnet(data_dict['locs'], batch, data_dict)
