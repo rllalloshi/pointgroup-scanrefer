@@ -110,15 +110,16 @@ class RefNet(nn.Module):
 
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
-            #print(f"number_of_object_proposals_in_batch {number_of_object_proposals_in_batch}")
-            #_, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if number_of_object_proposals_in_batch >= 128 else number_of_object_proposals_in_batch))
-            #print('batch_score_feats.shape 0' + str(batch_score_feats.shape))
-            batch_score_feats = batch_score_feats * batch_scores
+
+
             if number_of_object_proposals_in_batch > self.num_proposal:
-                batch_score_feats = batch_score_feats[0:self.num_proposal, :]
+                _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=self.num_proposal)
+                batch_score_feats = batch_score_feats[batch_proposals_indices, :]
+                batch_scores = batch_scores[batch_proposals_indices]
             if number_of_object_proposals_in_batch < self.num_proposal:
-                #print('batch_score_feats.shape 1' + str(batch_score_feats.shape))
                 batch_score_feats = F.pad(batch_score_feats, [0, 0, 0, self.num_proposal - number_of_object_proposals_in_batch])
+                batch_scores = F.pad(batch_scores, [0, 0, 0, self.num_proposal - number_of_object_proposals_in_batch])
+            batch_score_feats = batch_score_feats * batch_scores
             batch[x] = batch_score_feats
 
         # print(f"batch.shape: {batch.shape}")
