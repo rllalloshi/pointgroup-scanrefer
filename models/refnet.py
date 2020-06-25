@@ -96,7 +96,7 @@ class RefNet(nn.Module):
                 cluster_idx = proposals_idx[x][0].int().item()
                 batch_indices[batch_idx].append(cluster_idx)
             else:
-                print('No batch found for instance')
+                print('No proposal found for instance')
 
         for x in range(batch_size):
             batch_inds = batch_indices[x]

@@ -47,8 +47,8 @@ TRAIN:
   score_mode: 4 # mean
 
   pretrain_path: 'pretrained/pointgroup.pth'
-  pretrain_module: ['input_conv', 'unet', 'output_layer', 'linear', 'score_unet', 'score_outputlayer', 'score_linear']
-  fix_module: ['input_conv', 'unet', 'output_layer', 'linear', 'score_unet', 'score_outputlayer', 'score_linear']
+  pretrain_module: ['input_conv', 'unet', 'output_layer', 'linear', 'offset', 'offset_linear', 'score_unet', 'score_outputlayer', 'score_linear']
+  fix_module: ['input_conv', 'unet', 'output_layer', 'linear', 'offset', 'offset_linear', 'score_unet', 'score_outputlayer', 'score_linear']
 
 GROUP:
   ### point grouping
