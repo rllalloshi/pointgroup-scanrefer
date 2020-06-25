@@ -398,9 +398,38 @@ def model_fn_decorator(test=False):
         input_ = spconv.SparseConvTensor(voxel_feats, voxel_coords.int(), spatial_shape, cfg.batch_size)
 
         ret = model(input_, p2v_map, coords_float, coords[:, 0].int(), batch_offsets, epoch)
-        ret["batch_offsets"]=batch_offsets
+        ret["batch_offsets"] = batch_offsets
         ret["instance_info"] = instance_info
-        ret["ref_box_labels"] =  batch['ref_box_labels']
+        ret["gt_ref"] = batch['gt_ref']
+
+        semantic_scores = ret['semantic_scores']
+        pt_offsets = ret['pt_offsets']
+        scores, score_feats, proposals_idx, proposals_offset = ret['proposal_scores']
+        loss_inp = {}
+        loss_inp['semantic_scores'] = (semantic_scores, labels)
+        loss_inp['pt_offsets'] = (pt_offsets, coords_float, instance_info, instance_labels)
+        loss_inp['proposal_scores'] = (scores, proposals_idx, proposals_offset, instance_pointnum)
+
+        loss, loss_out, infos = loss_fn(loss_inp, epoch)
+
+        ##### accuracy / visual_dict / meter_dict
+        with torch.no_grad():
+            preds = {}
+            preds['semantic'] = semantic_scores
+            preds['pt_offsets'] = pt_offsets
+            if (epoch > cfg.prepare_epochs):
+                preds['score'] = scores
+                preds['proposals'] = (proposals_idx, proposals_offset)
+
+            visual_dict = {}
+            visual_dict['loss'] = loss
+            for k, v in loss_out.items():
+                visual_dict[k] = v[0]
+
+            meter_dict = {}
+            meter_dict['loss'] = (loss.item(), coords.shape[0])
+            for k, v in loss_out.items():
+                meter_dict[k] = (float(v[0]), v[1])
 
         #return loss, preds, visual_dict, meter_dict
         return ret
@@ -442,27 +471,25 @@ def model_fn_decorator(test=False):
         loss_out['offset_norm_loss'] = (offset_norm_loss, valid.sum())
         loss_out['offset_dir_loss'] = (offset_dir_loss, valid.sum())
 
-        if (epoch > cfg.prepare_epochs):
-            '''score loss'''
-            scores, proposals_idx, proposals_offset, instance_pointnum = loss_inp['proposal_scores']
-            # scores: (nProposal, 1), float32
-            # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int, cpu
-            # instance_pointnum: (total_nInst), int
+        '''score loss'''
+        scores, proposals_idx, proposals_offset, instance_pointnum = loss_inp['proposal_scores']
+        # scores: (nProposal, 1), float32
+        # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+        # proposals_offset: (nProposal + 1), int, cpu
+        # instance_pointnum: (total_nInst), int
 
-            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_labels, instance_pointnum) # (nProposal, nInstance), float
-            gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
-            gt_scores = get_segmented_scores(gt_ious, cfg.fg_thresh, cfg.bg_thresh)
+        ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_labels, instance_pointnum) # (nProposal, nInstance), float
+        gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
+        gt_scores = get_segmented_scores(gt_ious, cfg.fg_thresh, cfg.bg_thresh)
 
-            score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-            score_loss = score_loss.mean()
+        score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
+        score_loss = score_loss.mean()
 
-            loss_out['score_loss'] = (score_loss, gt_ious.shape[0])
+        loss_out['score_loss'] = (score_loss, gt_ious.shape[0])
 
         '''total loss'''
         loss = cfg.loss_weight[0] * semantic_loss + cfg.loss_weight[1] * offset_norm_loss + cfg.loss_weight[2] * offset_dir_loss
-        if(epoch > cfg.prepare_epochs):
-            loss += (cfg.loss_weight[3] * score_loss)
+        loss += (cfg.loss_weight[3] * score_loss)
 
         return loss, loss_out, infos
 

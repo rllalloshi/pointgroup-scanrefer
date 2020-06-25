@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 import numpy as np
 import sys
 import os
@@ -10,7 +12,7 @@ from lib.pointgroup import PointGroup
 from lib.util.config import cfg
 from lib.pointgroup import model_fn_decorator
 class RefNet(nn.Module):
-    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, input_feature_dim=0, num_proposal=128, vote_factor=1, sampling="vote_fps", use_lang_classifier=True):
+    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, input_feature_dim=0, num_proposal=256, vote_factor=1, sampling="vote_fps", use_lang_classifier=True):
         super().__init__()
 
         self.num_class = num_class
@@ -61,7 +63,7 @@ class RefNet(nn.Module):
 
         scores, score_feats,  proposals_idx, proposals_offset = ret['proposal_scores']
         batch_offsets = ret["batch_offsets"]
-        batch_size = ret["batch_offsets"].shape[0] -1
+        batch_size = ret["batch_offsets"].shape[0] - 1
         # # gt_centers = ret["instance_info"][:,0:3]
         # print(f"scores {scores.shape}")
         # print(f"score_feats {score_feats.shape}")
@@ -81,17 +83,20 @@ class RefNet(nn.Module):
         for x in range(batch_size):
             batch_indices[x] = []
 
-        batch = torch.zeros(batch_size, 128, 16 )
+        batch = torch.zeros(batch_size, self.num_proposal, 16)
 
         for x in proposals_offset[:-1]:
             point_idx_in_proposal = proposals_idx[x][1]
-            batch_idx = 0
-            for i in  range(batch_size):
+            batch_idx = None
+            for i in range(batch_size):
                 if point_idx_in_proposal < batch_offsets[i+1] and point_idx_in_proposal >= batch_offsets[i]:
                     batch_idx = i
                     break
-            cluster_idx = proposals_idx[x][0].int().item()
-            batch_indices[batch_idx].append(cluster_idx)
+            if batch_idx is not None:
+                cluster_idx = proposals_idx[x][0].int().item()
+                batch_indices[batch_idx].append(cluster_idx)
+            else:
+                print('No proposal found for instance')
 
         for x in range(batch_size):
             batch_inds = batch_indices[x]
@@ -99,18 +104,15 @@ class RefNet(nn.Module):
             batch_scores = scores[batch_inds]
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
-            # print(f"number_of_object_proposals_in_batch {number_of_object_proposals_in_batch}")
-            _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if number_of_object_proposals_in_batch >= 128 else number_of_object_proposals_in_batch))
-            batch_score_feats = batch_score_feats[batch_proposals_indices, :] * batch_scores[batch_proposals_indices]
-            if number_of_object_proposals_in_batch < 128:
-                padding = torch.zeros(128 - number_of_object_proposals_in_batch, 16).cuda()
-                try:
-                    batch_score_feats = torch.cat((batch_score_feats, padding))
-                except:
-                    print(f"batch size: {batch_size}")
-                    print(f"padding: {padding.shape}")
-                    print(f"padding: {batch_score_feats.shape}")
-                    batch_score_feats = torch.zeros(128, 16)
+            #print(f"number_of_object_proposals_in_batch {number_of_object_proposals_in_batch}")
+            #_, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=(128 if number_of_object_proposals_in_batch >= 128 else number_of_object_proposals_in_batch))
+            #print('batch_score_feats.shape 0' + str(batch_score_feats.shape))
+            batch_score_feats = batch_score_feats * batch_scores
+            if number_of_object_proposals_in_batch > self.num_proposal:
+                batch_score_feats = batch_score_feats[0:self.num_proposal, :]
+            if number_of_object_proposals_in_batch < self.num_proposal:
+                #print('batch_score_feats.shape 1' + str(batch_score_feats.shape))
+                batch_score_feats = F.pad(batch_score_feats, [0, 0, 0, self.num_proposal - number_of_object_proposals_in_batch])
             batch[x] = batch_score_feats
 
 

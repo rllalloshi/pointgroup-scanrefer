@@ -112,9 +112,9 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     """
 
     # unpack
-    cluster_preds = data_dict["cluster_ref"].cuda()# (B, num_proposal)
+    cluster_preds = data_dict["cluster_ref"].float().cuda()# (B, num_proposal)
     # print(f"cluster_predsL: {cluster_preds.shape}")
-    object_assignment = torch.from_numpy(data_dict["ref_box_labels"]).cuda()
+    object_assignment = torch.from_numpy(data_dict["gt_ref"]).float().cuda()
     # print(f"object_assignment: {object_assignment.shape}")
 
     REFERENCE_CLS_WEIGHTS = [1/NUM_PROPOSALS, 1] # put larger weights on positive reference
@@ -154,11 +154,11 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
         # reference accuracy
         cluster_ref = data_dict["cluster_ref"]
         cluster_preds = torch.argmax(cluster_ref, dim=1).long().unsqueeze(1).repeat(1, cluster_ref.shape[1])
-        cluster_labels = data_dict["ref_box_label"]
+        cluster_labels = data_dict["gt_ref"]
         preds = torch.zeros(cluster_ref.shape).cuda()
         preds = preds.scatter_(1, cluster_preds, 1)
         cluster_preds = preds.cuda()
-        cluster_labels = cluster_labels.float().cuda()
+        cluster_labels = torch.from_numpy(cluster_labels).float().cuda()
         corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
         labels = torch.ones(corrects.shape[0]).cuda()
         ref_acc = (corrects / (labels + 1e-8)).cpu().numpy()
