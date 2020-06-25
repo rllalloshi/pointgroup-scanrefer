@@ -130,7 +130,7 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
 
 
     criterion = torch.nn.CrossEntropyLoss()
-    lang_loss = criterion(data_dict["lang_scores"].cuda(), data_dict["object_cat"].cuda())
+    lang_loss = criterion(data_dict["lang_scores"].cuda(), data_dict["object_cat"].cuda().view(-1))
 
     return ref_loss, lang_loss
 
