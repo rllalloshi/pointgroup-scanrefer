@@ -9,6 +9,7 @@ import numpy as np
 import os
 import sys
 from torch.nn.utils.rnn import pack_padded_sequence
+from lib.config import CONF
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from utils.nn_distance import nn_distance
@@ -53,11 +54,12 @@ class RefModule(nn.Module):
         self.sampling = sampling
         self.use_lang_classifier = use_lang_classifier
         self.seed_feat_dim = seed_feat_dim
+        self.glove_embed_dim = 300
 
 
         # --------- FEATURE FUSION ---------
         self.gru = nn.GRU(
-            input_size=300,
+            input_size=self.glove_embed_dim,
             hidden_size=256,
             batch_first=True
         )
@@ -101,8 +103,12 @@ class RefModule(nn.Module):
             scores: (B,num_proposal,2+3+NH*2+NS*4) 
         """
         # --------- FEATURE FUSION ---------
-        lang_feat = data_dict["lang_feat"].cuda()
-        lang_feat = pack_padded_sequence(lang_feat, data_dict["lang_len"], batch_first=True, enforce_sorted=False)
+        bs = features.shape[0]
+
+        lang_feat = data_dict["lang_feat"].cuda().view(bs, CONF.TRAIN.MAX_DES_LEN ,self.glove_embed_dim)
+        lang_len = data_dict['lang_len'].view(bs, -1).view(-1)
+
+        lang_feat = pack_padded_sequence(lang_feat, lang_len, batch_first=True, enforce_sorted=False)
     
         # encode description
         _, lang_feat = self.gru(lang_feat)
@@ -116,7 +122,7 @@ class RefModule(nn.Module):
         # fuse
         # print(f"lang_feat.shape: {lang_feat.shape}")
 
-        bs = features.shape[0]
+
         n_prop = features.shape[1]
         features = self.features_up_proj(features.view(bs*n_prop, -1)).view(bs, n_prop, -1)
         features = features.transpose(dim0=1, dim1=2)
