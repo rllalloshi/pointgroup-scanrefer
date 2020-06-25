@@ -411,6 +411,10 @@ def model_fn_decorator(test=False):
         loss_inp['proposal_scores'] = (scores, proposals_idx, proposals_offset, instance_pointnum)
 
         loss, loss_out, infos = loss_fn(loss_inp, epoch)
+        ret['pg_loss'] = loss
+        ret['ious'] = infos['ious']
+        ret['gt_ious'] = infos['gt_ious']
+        ret['gt_instance_idxs'] = infos['gt_instance_idxs']
 
         ##### accuracy / visual_dict / meter_dict
         with torch.no_grad():
@@ -481,6 +485,10 @@ def model_fn_decorator(test=False):
         ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_labels, instance_pointnum) # (nProposal, nInstance), float
         gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
         gt_scores = get_segmented_scores(gt_ious, cfg.fg_thresh, cfg.bg_thresh)
+
+        infos['ious'] = ious
+        infos['gt_ious'] = gt_ious
+        infos['gt_instance_idxs'] = gt_instance_idxs
 
         score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
         score_loss = score_loss.mean()

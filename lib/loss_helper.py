@@ -5,9 +5,11 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import sys
 import os
+
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from utils.nn_distance import nn_distance, huber_loss
@@ -112,7 +114,10 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     """
 
     # unpack
+    gt_proposals = data_dict["gt_proposals"]
     cluster_preds = data_dict["cluster_ref"].float().cuda()# (B, num_proposal)
+    probs = F.softmax(cluster_preds + 1e-8, dim=1)
+    predictions = probs.argmax(dim=1)
     # print(f"cluster_predsL: {cluster_preds.shape}")
     object_assignment = torch.from_numpy(data_dict["gt_ref"]).float().cuda()
     # print(f"object_assignment: {object_assignment.shape}")
