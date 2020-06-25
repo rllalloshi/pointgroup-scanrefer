@@ -114,10 +114,12 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     """
 
     # unpack
-    gt_proposals = data_dict["gt_proposals"]
-    cluster_preds = data_dict["cluster_ref"].float().cuda()# (B, num_proposal)
+    gt_proposals = data_dict["gt_proposals"] # gt_proposals[i] tells us what true object does proposal i represent
+    cluster_preds = data_dict["cluster_ref"].float().cuda() # (B, num_proposal)
     probs = F.softmax(cluster_preds + 1e-8, dim=1)
-    predictions = probs.argmax(dim=1)
+    predictions = probs.argmax(dim=1) # predicted proposal
+    gt_ref = gt_proposals.gather(1, predictions.view(-1,1).cpu()) # build one hot vector for this
+
     # print(f"cluster_predsL: {cluster_preds.shape}")
     object_assignment = torch.from_numpy(data_dict["gt_ref"]).float().cuda()
     # print(f"object_assignment: {object_assignment.shape}")

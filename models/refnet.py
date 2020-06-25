@@ -87,7 +87,7 @@ class RefNet(nn.Module):
 
         batch = torch.zeros(batch_size, self.num_proposal, 16)
         proposal_mask = torch.ones(batch_size, self.num_proposal)
-        gt_proposals = []
+        gt_proposals = torch.ones(batch_size, self.num_proposal)*-1
 
         for x in proposals_offset[:-1]:
             point_idx_in_proposal = proposals_idx[x][1]
@@ -104,10 +104,9 @@ class RefNet(nn.Module):
 
         for x in range(batch_size):
             batch_inds = batch_indices[x]
-            gt_proposals.append(gt_instance_idxs[batch_inds])
-            # print(f"batch_indx {batch_inds}")
             batch_scores = scores[batch_inds]
-
+            gt_proposals[x, 0:len(batch_inds)] = gt_instance_idxs[batch_inds]
+            # print(f"batch_indx {batch_inds}")
 
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
