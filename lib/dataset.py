@@ -123,7 +123,7 @@ class ScannetReferenceDataset(Dataset):
         angle_residuals = np.zeros((MAX_NUM_OBJ,))
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
-        ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
+        #ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
 
         num_bbox = instance_bboxes.shape[0] if instance_bboxes.shape[0] < MAX_NUM_OBJ else MAX_NUM_OBJ
         target_bboxes_mask[0:num_bbox] = 1
@@ -199,7 +199,7 @@ class ScannetReferenceDataset(Dataset):
             target_bboxes[0:num_bbox, 3:6] - DC.mean_size_arr[class_ind,:]
 
         # construct the reference target label for each bbox
-        ref_box_label = np.zeros(MAX_NUM_OBJ)
+        '''ref_box_label = np.zeros(MAX_NUM_OBJ)
         for i, gt_id in enumerate(instance_bboxes[:num_bbox,-1]):
             if gt_id == object_id:
                 ref_box_label[i] = 1
@@ -208,6 +208,7 @@ class ScannetReferenceDataset(Dataset):
                 ref_heading_residual_label = angle_residuals[i]
                 ref_size_class_label = size_classes[i]
                 ref_size_residual_label = size_residuals[i]
+        '''
             
         data_dict = {}
         data_dict["cords"] = cords
@@ -227,9 +228,8 @@ class ScannetReferenceDataset(Dataset):
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
-        ref_box_label_np = ref_box_label.astype(np.int64)
-        data_dict["ref_box_label"] = ref_box_label_np # 0/1 reference labels for each object bbox
-        data_dict["ref_box_label"] = ref_box_label_np # 0/1 reference labels for each object bbox
+        #ref_box_label_np = ref_box_label.astype(np.int64)
+        #data_dict["ref_box_label"] = ref_box_label_np # 0/1 reference labels for each object bbox
         # data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
         # data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
         # data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)
@@ -249,10 +249,10 @@ class ScannetReferenceDataset(Dataset):
         feats = []
         labels = []
         instance_labels = []
+        gt_ref = []
 
         instance_infos = []  # (N, 9)
         instance_pointnum = []  # (total_nInst), int
-        ref_box_labels = torch.zeros(len(id), 256).numpy()
 
         batch_offsets = [0]
 
@@ -267,7 +267,7 @@ class ScannetReferenceDataset(Dataset):
             'sem_cls_label': [],
             'box_label_mask': [],
             'scan_idx': [],
-            'ref_box_label': [],
+            #'ref_box_label': [],
             # 'ref_center_label': [],
             # 'ref_heading_class_label': [],
             # 'ref_heading_residual_label': [],
@@ -285,11 +285,10 @@ class ScannetReferenceDataset(Dataset):
             rgb = id[i]['colors']
             label = id[i]['labels']
             instance_label = id[i]['instance_labels']
-            ref_box_labels[i] = id[i]['ref_box_label']
+            object_id = id[i]['object_id']
 
             for key in result:
                 result[key].append(id[i][key])
-
 
             ### jitter / flip x / rotation
             xyz_middle = self.dataAugment(xyz_origin, True, True, True)
@@ -314,7 +313,7 @@ class ScannetReferenceDataset(Dataset):
             instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
 
             ### get instance information
-            inst_num, inst_infos = self.getInstanceInfo(xyz_middle, instance_label.astype(np.int32))
+            inst_num, inst_infos, gt_ref_val = self.getInstanceInfo(xyz_middle, instance_label.astype(np.int32), object_id)
             inst_info = inst_infos["instance_info"]  # (n, 9), (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
             inst_pointnum = inst_infos["instance_pointnum"]   # (nInst), list
 
@@ -329,6 +328,7 @@ class ScannetReferenceDataset(Dataset):
             feats.append(torch.from_numpy(rgb) + torch.randn(3) * 0.1)
             labels.append(torch.from_numpy(label))
             instance_labels.append(torch.from_numpy(instance_label))
+            gt_ref.append(gt_ref_val)
 
             instance_infos.append(torch.from_numpy(inst_info))
             instance_pointnum.extend(inst_pointnum)
@@ -366,11 +366,11 @@ class ScannetReferenceDataset(Dataset):
         result['offsets'] = batch_offsets
         result['spatial_shape'] = spatial_shape
         result['feats'] = feats
-        result['ref_box_labels'] = ref_box_labels
+        result['gt_ref'] = np.array(gt_ref).astype(np.int64)
 
         return result
 
-    def getInstanceInfo(self, xyz, instance_label):
+    def getInstanceInfo(self, xyz, instance_label, object_id):
         '''
         :param xyz: (n, 3)
         :param instance_label: (n), int, (0~nInst-1, -100)
@@ -380,8 +380,12 @@ class ScannetReferenceDataset(Dataset):
                                 dtype=np.float32) * -100.0  # (n, 9), float, (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
         instance_pointnum = []  # (nInst), int
         instance_num = int(instance_label.max()) + 1
+        gt_ref = np.zeros(MAX_NUM_OBJ)
         for i_ in range(instance_num):
             inst_idx_i = np.where(instance_label == i_)
+
+            if i_ == object_id:
+                gt_ref[i_] = 1
 
             ### instance_info
             xyz_i = xyz[inst_idx_i]
@@ -397,7 +401,7 @@ class ScannetReferenceDataset(Dataset):
             ### instance_pointnum
             instance_pointnum.append(inst_idx_i[0].size)
 
-        return instance_num, {"instance_info": instance_info, "instance_pointnum": instance_pointnum}
+        return instance_num, {"instance_info": instance_info, "instance_pointnum": instance_pointnum}, gt_ref
 
     def getCroppedInstLabel(self, instance_label, valid_idxs):
         instance_label = instance_label[valid_idxs]
