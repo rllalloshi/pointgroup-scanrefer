@@ -126,8 +126,7 @@ class RefNet(nn.Module):
         batch = batch.cuda()
         data_dict['proposal_mask'] = proposal_mask
         data_dict['gt_proposals'] = gt_proposals
-        data_dict['loss_inp'] = ret['loss_inp']
-        data_dict['pg_loss'] =0
+        data_dict['pg_loss'] = ret['pg_loss']
         data_dict = self.rfnet(data_dict['locs'], batch, data_dict)
 
         return data_dict

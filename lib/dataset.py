@@ -199,7 +199,7 @@ class ScannetReferenceDataset(Dataset):
             target_bboxes[0:num_bbox, 3:6] - DC.mean_size_arr[class_ind,:]
 
         # construct the reference target label for each bbox
-        ref_box_label = np.zeros(MAX_NUM_OBJ)
+        '''ref_box_label = np.zeros(MAX_NUM_OBJ)
         for i, gt_id in enumerate(instance_bboxes[:num_bbox,-1]):
             if gt_id == object_id:
                 ref_box_label[i] = 1
@@ -208,8 +208,8 @@ class ScannetReferenceDataset(Dataset):
                 ref_heading_residual_label = angle_residuals[i]
                 ref_size_class_label = size_classes[i]
                 ref_size_residual_label = size_residuals[i]
-
-
+        '''
+            
         data_dict = {}
         data_dict["cords"] = cords
         data_dict["colors"] = colors
@@ -228,8 +228,8 @@ class ScannetReferenceDataset(Dataset):
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["scan_idx"] = np.array(idx).astype(np.int64)
-        ref_box_label_np = ref_box_label.astype(np.int64)
-        data_dict["ref_box_label"] = ref_box_label_np # 0/1 reference labels for each object bbox
+        #ref_box_label_np = ref_box_label.astype(np.int64)
+        #data_dict["ref_box_label"] = ref_box_label_np # 0/1 reference labels for each object bbox
         # data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
         # data_dict["ref_heading_class_label"] = np.array(int(ref_heading_class_label)).astype(np.int64)
         # data_dict["ref_heading_residual_label"] = np.array(int(ref_heading_residual_label)).astype(np.int64)
@@ -400,8 +400,6 @@ class ScannetReferenceDataset(Dataset):
 
             ### instance_pointnum
             instance_pointnum.append(inst_idx_i[0].size)
-
-        assert(np.count_nonzero(gt_ref) == 1) # sanity check to see if we found a ground truth object for every scene
 
         return instance_num, {"instance_info": instance_info, "instance_pointnum": instance_pointnum}, gt_ref
 

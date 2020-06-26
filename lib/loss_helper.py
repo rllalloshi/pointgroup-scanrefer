@@ -9,8 +9,7 @@ import torch.nn.functional as F
 import numpy as np
 import sys
 import os
-from lib.pointgroup_ops.functions import pointgroup_ops
-from lib.pointgroup import *
+
 
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from utils.nn_distance import nn_distance, huber_loss
@@ -134,44 +133,6 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     lang_loss = criterion(data_dict["lang_scores"].cuda(), data_dict["object_cat"].cuda().view(-1))
 
     return ref_loss, lang_loss
-
-
-def compute_reference_loss_with_ious(data_dict):
-    score_criterion = nn.BCELoss(reduction='none').cuda()
-
-    #
-    # scores, proposals_idx, proposals_offset, instance_pointnum = data_dict['loss_inp']['proposal_scores']
-    #
-    # ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_labels,
-    #                               instance_pointnum)  # (nProposal, nInstance), float
-    # gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
-    # gt_scores = get_segmented_scores(gt_ious, cfg.fg_thresh, cfg.bg_thresh)
-    #
-    # infos = {}
-    # infos['ious'] = ious
-    # infos['gt_ious'] = gt_ious
-    # infos['gt_instance_idxs'] = gt_instance_idxs
-    #
-    # score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-    # score_loss = score_loss.mean()
-
-
-
-def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
-    '''
-    :param scores: (N), float, 0~1
-    :return: segmented_scores: (N), float 0~1, >fg_thresh: 1, <bg_thresh: 0, mid: linear
-    '''
-    fg_mask = scores > fg_thresh
-    bg_mask = scores < bg_thresh
-    interval_mask = (fg_mask == 0) & (bg_mask == 0)
-
-    segmented_scores = (fg_mask > 0).float()
-    k = 1 / (fg_thresh - bg_thresh)
-    b = bg_thresh / (bg_thresh - fg_thresh)
-    segmented_scores[interval_mask] = scores[interval_mask] * k + b
-
-    return segmented_scores
 
 def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_max_iou=False, post_processing=None):
     """ Loss functions
