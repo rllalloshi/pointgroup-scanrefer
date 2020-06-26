@@ -29,7 +29,6 @@ class RefNet(nn.Module):
         # Backbone point feature learning
         self.backbone_net = PointGroup(cfg)
 
-
         # Vote aggregation, detection and language reference
         self.rfnet = RefModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, use_lang_classifier)
 

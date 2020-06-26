@@ -39,7 +39,6 @@ def compute_box_and_sem_cls_loss(data_dict, config):
         size_reg_loss
         sem_cls_loss
     """
-
     num_heading_bin = config.num_heading_bin
     num_size_cluster = config.num_size_cluster
     num_class = config.num_class

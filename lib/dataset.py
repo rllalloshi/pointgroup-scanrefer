@@ -297,20 +297,22 @@ class ScannetReferenceDataset(Dataset):
             xyz = xyz_middle * cfg.scale
 
             ### elastic
-            xyz = self.elastic(xyz, 6 * cfg.scale // 50, 40 * cfg.scale / 50)
-            xyz = self.elastic(xyz, 20 * cfg.scale // 50, 160 * cfg.scale / 50)
+            #xyz = self.elastic(xyz, 6 * cfg.scale // 50, 40 * cfg.scale / 50)
+            #xyz = self.elastic(xyz, 20 * cfg.scale // 50, 160 * cfg.scale / 50)
 
             ### offset
             xyz -= xyz.min(0)
 
             ### crop
-            xyz, valid_idxs = self.crop(xyz)
+            #xyz, valid_idxs = self.crop(xyz)
 
-            xyz_middle = xyz_middle[valid_idxs]
-            xyz = xyz[valid_idxs]
-            rgb = rgb[valid_idxs]
-            label = label[valid_idxs]
-            instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
+            #xyz_middle = xyz_middle[valid_idxs]
+            #xyz = xyz[valid_idxs]
+            #rgb = rgb[valid_idxs]
+            #label = label[valid_idxs]
+            #instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
+
+            instance_label = self.fixInstLabel(instance_label)
 
             ### get instance information
             inst_num, inst_infos, gt_ref_val = self.getInstanceInfo(xyz_middle, instance_label.astype(np.int32), object_id)
@@ -327,7 +329,7 @@ class ScannetReferenceDataset(Dataset):
             locs_float.append(torch.from_numpy(xyz_middle))
             feats.append(torch.from_numpy(rgb) + torch.randn(3) * 0.1)
             labels.append(torch.from_numpy(label))
-            instance_labels.append(torch.from_numpy(instance_label))
+            instance_labels.append(torch.from_numpy(instance_label.astype(np.int32)))
             gt_ref.append(gt_ref_val)
 
             instance_infos.append(torch.from_numpy(inst_info))
@@ -401,7 +403,20 @@ class ScannetReferenceDataset(Dataset):
             ### instance_pointnum
             instance_pointnum.append(inst_idx_i[0].size)
 
+        if(np.count_nonzero(gt_ref) != 1):
+            print('problem')
+
+        assert(np.count_nonzero(gt_ref) == 1) # sanity check to see if we found a ground truth object for every scene
+
         return instance_num, {"instance_info": instance_info, "instance_pointnum": instance_pointnum}, gt_ref
+
+    def fixInstLabel(self, instance_label):
+        j = 0
+        while (j < instance_label.max()):
+            if (len(np.where(instance_label == j)[0]) == 0):
+                instance_label[instance_label == instance_label.max()] = j
+            j += 1
+        return instance_label
 
     def getCroppedInstLabel(self, instance_label, valid_idxs):
         instance_label = instance_label[valid_idxs]

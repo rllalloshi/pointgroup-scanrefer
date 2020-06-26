@@ -176,7 +176,6 @@ class Solver():
 
     def _forward(self, data_dict):
         data_dict = self.model(data_dict)
-
         return data_dict
 
     def _backward(self):
