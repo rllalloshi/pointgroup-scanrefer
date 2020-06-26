@@ -14,6 +14,40 @@ remapper = np.ones(150) * (-100)
 for i, x in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39]):
     remapper[x] = i
 
+def read_aggregation(filename):
+    assert os.path.isfile(filename)
+    object_id_to_segs = {}
+    label_to_segs = {}
+    with open(filename) as f:
+        data = json.load(f)
+        num_objects = len(data['segGroups'])
+        for i in range(num_objects):
+            object_id = data['segGroups'][i]['objectId'] + 1 # instance ids should be 1-indexed
+            label = data['segGroups'][i]['label']
+            segs = data['segGroups'][i]['segments']
+            object_id_to_segs[object_id] = segs
+            if label in label_to_segs:
+                label_to_segs[label].extend(segs)
+            else:
+                label_to_segs[label] = segs
+    return object_id_to_segs, label_to_segs
+
+
+def read_segmentation(filename):
+    assert os.path.isfile(filename)
+    seg_to_verts = {}
+    with open(filename) as f:
+        data = json.load(f)
+        num_verts = len(data['segIndices'])
+        for i in range(num_verts):
+            seg_id = data['segIndices'][i]
+            if seg_id in seg_to_verts:
+                seg_to_verts[seg_id].append(i)
+            else:
+                seg_to_verts[seg_id] = [i]
+    return seg_to_verts, num_verts
+
+
 def export(scene_name, mesh_file, agg_file, seg_file, labels_file, label_map_file, output_file=None):
     mesh = plyfile.PlyData().read(mesh_file)
     points = np.array([list(x) for x in mesh.elements[0]])
@@ -56,14 +90,23 @@ def export(scene_name, mesh_file, agg_file, seg_file, labels_file, label_map_fil
     assert len(np.unique(check)) == len(check)
 
     # each point what label it belongs to
-    instance_labels = np.ones(sem_labels.shape[0]) * -100
-    for i in range(len(instance_segids)):
-        segids = instance_segids[i]
-        pointids = []
-        for segid in segids:
-            pointids += segid_to_pointid[segid]
-        instance_labels[pointids] = i
-        assert (len(np.unique(sem_labels[pointids])) == 1)
+    object_id_to_segs, label_to_segs = read_aggregation(agg_file)
+    seg_to_verts, num_verts = read_segmentation(seg_file)
+    label_ids = np.zeros(shape=(num_verts), dtype=np.uint32)  # 0: unannotated
+    object_id_to_label_id = {}
+    for label, segs in label_to_segs.items():
+        label_id = label_map[label]
+        for seg in segs:
+            verts = seg_to_verts[seg]
+            label_ids[verts] = label_id
+    instance_ids = np.zeros(shape=(num_verts), dtype=np.uint32)  # 0: unannotated
+    num_instances = len(np.unique(list(object_id_to_segs.keys())))
+    for object_id, segs in object_id_to_segs.items():
+        for seg in segs:
+            verts = seg_to_verts[seg]
+            instance_ids[verts] = object_id
+            if object_id not in object_id_to_label_id:
+                object_id_to_label_id[object_id] = label_ids[verts][0]
 
     instance_ids = np.zeros(shape=(sem_labels.shape[0]), dtype=np.uint32)
     object_id_to_label_id = {}
@@ -104,10 +147,10 @@ def export(scene_name, mesh_file, agg_file, seg_file, labels_file, label_map_fil
         instance_bboxes[obj_id - 1, :] = bbox
 
     if output_file is not None:
-        torch.save((coords, colors, sem_labels, instance_labels), output_file + '_inst_nostuff.pth')
+        torch.save((coords, colors, sem_labels, instance_ids), output_file + '_inst_nostuff.pth')
         np.save(output_file+'_bbox.npy', instance_bboxes)
 
-    return coords, colors, sem_labels, instance_labels, instance_bboxes
+    return coords, colors, sem_labels, instance_ids, instance_bboxes
 
 def main():
     parser = argparse.ArgumentParser()
