@@ -11,6 +11,7 @@ import sys
 import datetime
 import torch
 import numpy as np
+import multiprocessing as mp
 from load_scannet_data import export
 
 import pdb
@@ -27,33 +28,35 @@ def export_one_scan(scan_name, output_filename_prefix):
     mesh_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean_2.ply')
     agg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '.aggregation.json')
     seg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean_2.0.010000.segs.json')
-    coords, colors, sem_labels, instance_labels, instance_bboxes = export(scan_name, mesh_file, agg_file, seg_file, labels_file,LABEL_MAP_FILE, None)
-
+    coords, colors, sem_labels, instance_labels = export(scan_name, mesh_file, agg_file, seg_file, labels_file, LABEL_MAP_FILE, None)
     num_instances = len(np.unique(instance_labels))
     print('Num of instances: ', num_instances)
-
-    bbox_mask = np.in1d(instance_bboxes[:,-2], OBJ_CLASS_IDS) # match the mesh2cap
-    instance_bboxes = instance_bboxes[bbox_mask,:]
-    print('Num of care instances: ', instance_bboxes.shape[0])
 
     print("Shape of points: {}".format(coords.shape))
 
     torch.save((coords, colors, sem_labels, instance_labels), output_filename_prefix + '_inst_nostuff.pth')
-    np.save(output_filename_prefix + '_bbox.npy', instance_bboxes)
+
+
+def batch_export_scene(scan_name):
+    print('-' * 20 + 'begin')
+    print(datetime.datetime.now())
+    print(scan_name)
+    output_filename_prefix = os.path.join(OUTPUT_FOLDER, scan_name)
+    export_one_scan(scan_name, output_filename_prefix)
+
+    print('-' * 20 + 'done')
+
 
 def batch_export():
     if not os.path.exists(OUTPUT_FOLDER):
         print('Creating new data folder: {}'.format(OUTPUT_FOLDER))                
-        os.mkdir(OUTPUT_FOLDER)        
-        
-    for scan_name in SCAN_NAMES:
-        print('-'*20+'begin')
-        print(datetime.datetime.now())
-        print(scan_name)
-        output_filename_prefix = os.path.join(OUTPUT_FOLDER, scan_name)      
-        export_one_scan(scan_name, output_filename_prefix)
-             
-        print('-'*20+'done')
+        os.mkdir(OUTPUT_FOLDER)
+
+    #for scan_name in SCAN_NAMES:
+    #    batch_export_scene(scan_name)
+    p = mp.Pool(processes=mp.cpu_count())
+    p.map(batch_export_scene, SCAN_NAMES)
+
 
 if __name__=='__main__':    
     batch_export()
