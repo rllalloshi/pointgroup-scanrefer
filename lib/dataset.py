@@ -138,14 +138,14 @@ class ScannetReferenceDataset(Dataset):
                 result[key].append(id[i][key])
 
             ### jitter / flip x / rotation
-            xyz_middle = self.dataAugment(xyz_origin, True, True, True)
+            xyz_middle = self.dataAugment(xyz_origin, False, True, True)
 
             ### scale
             xyz = xyz_middle * cfg.scale
 
             ### elastic
-            xyz = self.elastic(xyz, 6 * cfg.scale // 50, 40 * cfg.scale / 50)
-            xyz = self.elastic(xyz, 20 * cfg.scale // 50, 160 * cfg.scale / 50)
+            #xyz = self.elastic(xyz, 6 * cfg.scale // 50, 40 * cfg.scale / 50)
+            #xyz = self.elastic(xyz, 20 * cfg.scale // 50, 160 * cfg.scale / 50)
 
             ### offset
             xyz -= xyz.min(0)
@@ -232,7 +232,6 @@ class ScannetReferenceDataset(Dataset):
         gt_ref = np.zeros(MAX_NUM_OBJ)
         for i_ in range(instance_num):
             inst_idx_i = np.where(instance_label == i_)
-
 
             if i_ == object_id:
                 gt_ref[i_] = 1
