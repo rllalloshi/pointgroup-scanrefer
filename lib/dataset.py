@@ -127,10 +127,11 @@ class ScannetReferenceDataset(Dataset):
             rgb = id[i]['colors']
             label = id[i]['labels']
             instance_label = id[i]['instance_labels']
+            instance_label_1 = instance_label.copy()
             object_id = id[i]['object_id']
             scene_id = id[i]['scene_id']
             print('scene_id: ' + str(scene_id))
-            instance_num = int(instance_label.max())
+            instance_num = int(instance_label_1.max())
             if instance_num < object_id:
                 print('debug this')
 
@@ -151,23 +152,22 @@ class ScannetReferenceDataset(Dataset):
             xyz -= xyz.min(0)
 
             ### crop
-            #xyz, valid_idxs = self.crop(xyz)
+            xyz, valid_idxs = self.crop(xyz)
 
-            #xyz_middle = xyz_middle[valid_idxs]
-            #xyz = xyz[valid_idxs]
-            #rgb = rgb[valid_idxs]
-            #label = label[valid_idxs]
-            #instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
+            xyz_middle = xyz_middle[valid_idxs]
+            xyz = xyz[valid_idxs]
+            rgb = rgb[valid_idxs]
+            label = label[valid_idxs]
+            instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
 
-            #instance_label = self.fixInstLabel(instance_label)
 
             ### get instance information
-            inst_num, inst_infos, gt_ref_val = self.getInstanceInfo(xyz_middle, instance_label.astype(np.int32), object_id)
+            inst_num, inst_infos, gt_ref_val = self.getInstanceInfo(xyz_middle, instance_label_1.astype(np.int32), object_id)
             inst_info = inst_infos["instance_info"]  # (n, 9), (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
             inst_pointnum = inst_infos["instance_pointnum"]   # (nInst), list
 
             batch_instance_offsets.append(total_inst_num)
-            instance_label[np.where(instance_label != -100)] += total_inst_num
+            instance_label_1[np.where(instance_label != -100)] += total_inst_num
             total_inst_num += inst_num
 
             ### merge the scene to the batch
@@ -177,7 +177,7 @@ class ScannetReferenceDataset(Dataset):
             locs_float.append(torch.from_numpy(xyz_middle))
             feats.append(torch.from_numpy(rgb) + torch.randn(3) * 0.1)
             labels.append(torch.from_numpy(label))
-            instance_labels.append(torch.from_numpy(instance_label.astype(np.int32)))
+            instance_labels.append(torch.from_numpy(instance_label_1.astype(np.int32)))
             gt_ref.append(gt_ref_val)
 
             instance_infos.append(torch.from_numpy(inst_info))
@@ -240,9 +240,6 @@ class ScannetReferenceDataset(Dataset):
 
             ### instance_info
             xyz_i = xyz[inst_idx_i]
-            if xyz_i.shape[0] == 0:
-                print('!!!!!!!!!!!!!!!!!!!!!  xyz_i 0 elements !!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                print(i_)
             min_xyz_i = xyz_i.min(0)
             max_xyz_i = xyz_i.max(0)
             mean_xyz_i = xyz_i.mean(0)
@@ -258,27 +255,20 @@ class ScannetReferenceDataset(Dataset):
         if np.count_nonzero(gt_ref) != 1:
             print('max instance label' + str(instance_num))
             print('object id' + str(object_id))
-            print('problem')
 
         assert(np.count_nonzero(gt_ref) == 1) # sanity check to see if we found a ground truth object for every scene
 
         return instance_num, {"instance_info": instance_info, "instance_pointnum": instance_pointnum}, gt_ref
 
-    def fixInstLabel(self, instance_label):
-        j = 0
-        while (j < instance_label.max()):
-            if (len(np.where(instance_label == j)[0]) == 0):
-                instance_label[instance_label == instance_label.max()] = j
-            j += 1
-        return instance_label
-
     def getCroppedInstLabel(self, instance_label, valid_idxs):
         instance_label = instance_label[valid_idxs]
+        '''
         j = 0
         while (j < instance_label.max()):
             if (len(np.where(instance_label == j)[0]) == 0):
                 instance_label[instance_label == instance_label.max()] = j
             j += 1
+        '''
         return instance_label
 
     def elastic(self, x, gran, mag):
