@@ -206,8 +206,8 @@ class Solver():
         for data_dict in dataloader:
             # move to cuda
             for key in data_dict:
-                pass
                 # data_dict[key] = data_dict[key].cuda()
+                pass
 
             # initialize the running loss
             self._running_log = {
@@ -278,13 +278,13 @@ class Solver():
                     self._train_report(epoch_id)
 
                 # evaluation
-                # if self._global_iter_id % self.val_step == 0:
-                #     print("evaluating...")
-                #     # val
-                #     self._feed(self.dataloader["val"], "val", epoch_id)
-                #     self._dump_log("val")
-                #     self._set_phase("train")
-                #     self._epoch_report(epoch_id)
+                if self._global_iter_id % self.val_step == 0:
+                     print("evaluating...")
+                     # val
+                     self._feed(self.dataloader["val"], "val", epoch_id)
+                     self._dump_log("val")
+                     self._set_phase("train")
+                     self._epoch_report(epoch_id)
 
                 # dump log
                 self._dump_log("train")
@@ -293,7 +293,7 @@ class Solver():
 
         # check best
         if phase == "val":
-            cur_criterion = "iou_rate_0.5"
+            cur_criterion = "ref_acc"
             cur_best = np.mean(self.log[phase][cur_criterion])
             if cur_best > self.best[cur_criterion]:
                 self._log("best {} achieved: {}".format(cur_criterion, cur_best))

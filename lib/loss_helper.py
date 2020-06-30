@@ -113,25 +113,18 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     """
 
     # unpack
-    gt_proposals = data_dict["gt_proposals"] # gt_proposals[i] tells us what true object does proposal i represent
-    cluster_preds = data_dict["cluster_ref"].float().cuda() # (B, num_proposal)
-    probs = F.softmax(cluster_preds + 1e-8, dim=1)
-    predictions = probs.argmax(dim=1) # predicted proposal
-    gt_ref = gt_proposals.gather(1, predictions.view(-1,1).cpu()) # build one hot vector for this
+    cluster_preds = data_dict["cluster_ref"].float().cuda().clone() # (B, num_proposal)
 
-    # print(f"cluster_predsL: {cluster_preds.shape}")
     object_assignment = torch.from_numpy(data_dict["gt_ref"]).float().cuda()
-    # print(f"object_assignment: {object_assignment.shape}")
 
     REFERENCE_CLS_WEIGHTS = [1/NUM_PROPOSALS, 1] # put larger weights on positive reference
     criterion = SoftmaxRankingLoss(REFERENCE_CLS_WEIGHTS)
     ref_loss = criterion(cluster_preds, object_assignment)
 
-
     criterion = torch.nn.CrossEntropyLoss()
     lang_loss = criterion(data_dict["lang_scores"].cuda(), data_dict["object_cat"].cuda().view(-1))
 
-    return ref_loss, lang_loss
+    return ref_loss, lang_loss, cluster_preds
 
 def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_max_iou=False, post_processing=None):
     """ Loss functions
@@ -147,7 +140,7 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     """
 
     # Reference loss
-    ref_loss, lang_loss = compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
+    ref_loss, lang_loss, cluster_preds = compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
     data_dict["ref_loss"] = ref_loss
     data_dict["lang_loss"] = lang_loss
 
@@ -158,10 +151,9 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
 
     with torch.no_grad():
         # reference accuracy
-        cluster_ref = data_dict["cluster_ref"]
-        cluster_preds = torch.argmax(cluster_ref, dim=1).long().unsqueeze(1).repeat(1, cluster_ref.shape[1])
+        cluster_preds = torch.argmax(cluster_preds, dim=1).long().unsqueeze(1).repeat(1, cluster_preds.shape[1])
         cluster_labels = data_dict["gt_ref"]
-        preds = torch.zeros(cluster_ref.shape).cuda()
+        preds = torch.zeros(cluster_preds.shape).cuda()
         preds = preds.scatter_(1, cluster_preds, 1)
         cluster_preds = preds.cuda()
         cluster_labels = torch.from_numpy(cluster_labels).float().cuda()
