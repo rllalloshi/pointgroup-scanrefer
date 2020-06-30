@@ -94,6 +94,14 @@ class RefModule(nn.Module):
         self.bn1 = nn.BatchNorm1d(128)
         self.bn2 = nn.BatchNorm1d(128)
 
+        self.iou_pred = nn.Sequential(
+            nn.Linear(128, 256),
+            nn.ReLU(),
+            nn.Dropout(),
+            nn.BatchNorm1d(256),
+            nn.Linear(256, 1)
+        )
+
     def forward(self, xyz, features, data_dict):
         """
         Args:
@@ -126,15 +134,17 @@ class RefModule(nn.Module):
         n_prop = features.shape[1]
         features = self.features_up_proj(features.view(bs*n_prop, -1)).view(bs, n_prop, -1)
         features = features.transpose(dim0=1, dim1=2)
-        # print(f"features.shape: {features.shape}")
-        features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
-
+        features = torch.cat([features, lang_feat], dim=1)
+        features = self.feat_fuse(features)
         # --------- REFERENCE PREDICTION ---------
         proposal_mask = data_dict['proposal_mask'].unsqueeze(1).repeat(1, 128, 1).float().cuda()
         masked_features = features * proposal_mask
 
-        
         data_dict['cluster_ref'] = self.conv4(masked_features).squeeze(1)
+
+        masked_features = masked_features.transpose(dim0=1, dim1=2)
+        masked_features = masked_features.contiguous().view(2*256, -1)
+        data_dict['iou_preds'] = self.iou_pred(masked_features).view(2, 256)
 
         # print(f"data_dict['cluster_ref']: {data_dict['cluster_ref'].shape}")
         return data_dict

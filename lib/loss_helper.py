@@ -1,5 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
-# 
+#
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
@@ -86,7 +86,7 @@ def compute_box_and_sem_cls_loss(data_dict, config):
     size_label_one_hot_tiled = size_label_one_hot.unsqueeze(-1).repeat(1,1,1,3) # (B,K,num_size_cluster,3)
     predicted_size_residual_normalized = torch.sum(data_dict['size_residuals_normalized']*size_label_one_hot_tiled, 2) # (B,K,3)
 
-    mean_size_arr_expanded = torch.from_numpy(mean_size_arr.astype(np.float32)).cuda().unsqueeze(0).unsqueeze(0) # (1,1,num_size_cluster,3) 
+    mean_size_arr_expanded = torch.from_numpy(mean_size_arr.astype(np.float32)).cuda().unsqueeze(0).unsqueeze(0) # (1,1,num_size_cluster,3)
     mean_size_label = torch.sum(size_label_one_hot_tiled * mean_size_arr_expanded, 2) # (B,K,3)
     size_residual_label_normalized = size_residual_label / mean_size_label # (B,K,3)
     size_residual_normalized_loss = torch.mean(huber_loss(predicted_size_residual_normalized - size_residual_label_normalized, delta=1.0), -1) # (B,K,3) -> (B,K)
@@ -133,6 +133,33 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
 
     return ref_loss, lang_loss
 
+
+def compute_ref_loss_ious(data_dict):
+    ious = data_dict['ious']
+    # gt_ious = data_dict['gt_ious']
+    # gt_proposals = data_dict["gt_proposals"]
+    object_id = data_dict["object_id"]
+    batch_size = object_id.shape[0]
+    # iou_preds = data_dict['iou_preds']
+
+    loss = 0
+    for i in range(batch_size):
+        obj_i = object_id[i]
+        iou_i = ious[i, obj_i]
+        iou_i = torch.max(iou_i)
+        if iou_i < 0.001:
+            iou_i += 0.001
+        loss += - iou_i * torch.log(iou_i)
+
+
+    loss /= batch_size
+
+    print(f"[IOU_LOSS]: {loss}")
+
+    return loss
+
+
+
 def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_max_iou=False, post_processing=None):
     """ Loss functions
 
@@ -146,13 +173,15 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
         data_dict: dict
     """
 
+    iou_loss = compute_ref_loss_ious(data_dict)
+
     # Reference loss
     ref_loss, lang_loss = compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
     data_dict["ref_loss"] = ref_loss
     data_dict["lang_loss"] = lang_loss
 
-    loss = 0.1*ref_loss + lang_loss
-    
+    loss = 0.1*ref_loss + lang_loss + 5 * iou_loss
+
     loss *= 10 # amplify
     data_dict['loss'] = loss
 

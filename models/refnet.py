@@ -64,6 +64,8 @@ class RefNet(nn.Module):
         batch_offsets = ret["batch_offsets"]
         batch_size = ret["batch_offsets"].shape[0] - 1
         gt_instance_idxs = ret['gt_instance_idxs']
+        ious_all = ret['ious']
+        gt_ious_all = ret['gt_ious']
 
         # # gt_centers = ret["instance_info"][:,0:3]
         # print(f"scores {scores.shape}")
@@ -87,7 +89,8 @@ class RefNet(nn.Module):
         batch = torch.zeros(batch_size, self.num_proposal, 16)
         proposal_mask = torch.ones(batch_size, self.num_proposal)
         gt_proposals = torch.ones(batch_size, self.num_proposal)*-1
-
+        ious = torch.zeros(batch_size, self.num_proposal, self.num_proposal)
+        gt_ious = torch.zeros(batch_size, self.num_proposal)
         for x in proposals_offset[:-1]:
             point_idx_in_proposal = proposals_idx[x][1]
             batch_idx = None
@@ -105,11 +108,15 @@ class RefNet(nn.Module):
             batch_inds = batch_indices[x]
             batch_scores = scores[batch_inds]
             gt_proposals[x, 0:len(batch_inds)] = gt_instance_idxs[batch_inds]
+            gt_ious[x, 0:len(batch_inds)] = gt_ious_all[batch_inds]
+            ious_in_batch = ious_all[batch_inds, :]
+            for j in range(ious_in_batch.shape[0]):
+                ious[x, j, 0:ious_in_batch.shape[1]] = ious_in_batch[j, :]
             # print(f"batch_indx {batch_inds}")
 
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
-
+            batch_proposals_indices = torch.from_numpy(np.arange(0, number_of_object_proposals_in_batch))
             if number_of_object_proposals_in_batch > self.num_proposal:
                 _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=self.num_proposal)
                 batch_score_feats = batch_score_feats[batch_proposals_indices, :]
@@ -126,6 +133,9 @@ class RefNet(nn.Module):
         data_dict['proposal_mask'] = proposal_mask
         data_dict['gt_proposals'] = gt_proposals
         data_dict['pg_loss'] = ret['pg_loss']
+        data_dict['ious'] = ious
+        data_dict['gt_ious'] = gt_ious
+
         data_dict = self.rfnet(data_dict['locs'], batch, data_dict)
 
         return data_dict
