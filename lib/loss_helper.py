@@ -123,12 +123,15 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     cluster_preds = data_dict["cluster_ref"].float().cuda().clone() # (B, num_proposal)
     true_labels = torch.zeros(cluster_preds.shape).float().cuda()
     for batch in range(cluster_preds.shape[0]):
-        batch_ious = proposal_ious[batch]
+        batch_ious = proposal_ious[batch] # batch ious holds proposals - object ious shape (nProposals, nObjects)
         batch_instance_offset = batch_instance_offsets[batch]
+        # this is the gt referenced object id, i add batch_instance_offset because of how pointgroup handles batches nObjects is not
+        # only object in this scene but all batch scenes, so the second batch item, if gt object is 1, in batch_ious it wont
+        # be in batch_ious[proposalnumber][1] but 1 + number of object in first batch item
         gt_object_id = object_id[batch] + batch_instance_offset
-        gt_object_ious = batch_ious[:, gt_object_id]
-        gt_object_proposal_idx = gt_object_ious.argmax()
-        true_labels[batch][gt_object_proposal_idx] = 1
+        gt_object_ious = batch_ious[:, gt_object_id] # i get all ious for this gt object id
+        gt_object_proposal_idx = gt_object_ious.argmax() # what proposal has maximum iou for gt object id
+        true_labels[batch][gt_object_proposal_idx] = 1 # this is the true label, the proposal we want to have the hightest prediction
 
     REFERENCE_CLS_WEIGHTS = [1/NUM_PROPOSALS, 1] # put larger weights on positive reference
     criterion = SoftmaxRankingLoss(REFERENCE_CLS_WEIGHTS)
