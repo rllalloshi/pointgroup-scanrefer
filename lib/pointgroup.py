@@ -410,30 +410,30 @@ def model_fn_decorator(test=False):
         loss_inp['pt_offsets'] = (pt_offsets, coords_float, instance_info, instance_labels)
         loss_inp['proposal_scores'] = (scores, proposals_idx, proposals_offset, instance_pointnum)
 
-        loss, loss_out, infos = loss_fn(loss_inp, epoch)
-        ret['pg_loss'] = loss
+        infos = loss_fn(loss_inp, epoch)
+        ret['pg_loss'] = 0
         ret['ious'] = infos['ious']
         ret['gt_ious'] = infos['gt_ious']
         ret['gt_instance_idxs'] = infos['gt_instance_idxs']
 
         ##### accuracy / visual_dict / meter_dict
-        with torch.no_grad():
-            preds = {}
-            preds['semantic'] = semantic_scores
-            preds['pt_offsets'] = pt_offsets
-            if (epoch > cfg.prepare_epochs):
-                preds['score'] = scores
-                preds['proposals'] = (proposals_idx, proposals_offset)
-
-            visual_dict = {}
-            visual_dict['loss'] = loss
-            for k, v in loss_out.items():
-                visual_dict[k] = v[0]
-
-            meter_dict = {}
-            meter_dict['loss'] = (loss.item(), coords.shape[0])
-            for k, v in loss_out.items():
-                meter_dict[k] = (float(v[0]), v[1])
+        # with torch.no_grad():
+            # preds = {}
+            # preds['semantic'] = semantic_scores
+            # preds['pt_offsets'] = pt_offsets
+            # if (epoch > cfg.prepare_epochs):
+            #     preds['score'] = scores
+            #     preds['proposals'] = (proposals_idx, proposals_offset)
+            #
+            # visual_dict = {}
+            # visual_dict['loss'] = loss
+            # for k, v in loss_out.items():
+            #     visual_dict[k] = v[0]
+            #
+            # meter_dict = {}
+            # meter_dict['loss'] = (loss.item(), coords.shape[0])
+            # for k, v in loss_out.items():
+            #     meter_dict[k] = (float(v[0]), v[1])
 
         #return loss, preds, visual_dict, meter_dict
         return ret
@@ -441,39 +441,39 @@ def model_fn_decorator(test=False):
 
     def loss_fn(loss_inp, epoch):
 
-        loss_out = {}
+        # loss_out = {}
         infos = {}
-
-        '''semantic loss'''
-        semantic_scores, semantic_labels = loss_inp['semantic_scores']
-        # semantic_scores: (N, nClass), float32, cuda
-        # semantic_labels: (N), long, cuda
-
-        semantic_loss = semantic_criterion(semantic_scores, semantic_labels)
-        loss_out['semantic_loss'] = (semantic_loss, semantic_scores.shape[0])
-
-        '''offset loss'''
+        #
+        # '''semantic loss'''
+        # semantic_scores, semantic_labels = loss_inp['semantic_scores']
+        # # semantic_scores: (N, nClass), float32, cuda
+        # # semantic_labels: (N), long, cuda
+        #
+        # semantic_loss = semantic_criterion(semantic_scores, semantic_labels)
+        # loss_out['semantic_loss'] = (semantic_loss, semantic_scores.shape[0])
+        #
+        # '''offset loss'''
         pt_offsets, coords, instance_info, instance_labels = loss_inp['pt_offsets']
-        # pt_offsets: (N, 3), float, cuda
-        # coords: (N, 3), float32
-        # instance_info: (N, 9), float32 tensor (meanxyz, minxyz, maxxyz)
-        # instance_labels: (N), long
-
-        gt_offsets = instance_info[:, 0:3] - coords   # (N, 3)
-        pt_diff = pt_offsets - gt_offsets   # (N, 3)
-        pt_dist = torch.sum(torch.abs(pt_diff), dim=-1)   # (N)
-        valid = (instance_labels != cfg.ignore_label).float()
-        offset_norm_loss = torch.sum(pt_dist * valid) / (torch.sum(valid) + 1e-6)
-
-        gt_offsets_norm = torch.norm(gt_offsets, p=2, dim=1)   # (N), float
-        gt_offsets_ = gt_offsets / (gt_offsets_norm.unsqueeze(-1) + 1e-8)
-        pt_offsets_norm = torch.norm(pt_offsets, p=2, dim=1)
-        pt_offsets_ = pt_offsets / (pt_offsets_norm.unsqueeze(-1) + 1e-8)
-        direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
-        offset_dir_loss = torch.sum(direction_diff * valid) / (torch.sum(valid) + 1e-6)
-
-        loss_out['offset_norm_loss'] = (offset_norm_loss, valid.sum())
-        loss_out['offset_dir_loss'] = (offset_dir_loss, valid.sum())
+        # # pt_offsets: (N, 3), float, cuda
+        # # coords: (N, 3), float32
+        # # instance_info: (N, 9), float32 tensor (meanxyz, minxyz, maxxyz)
+        # # instance_labels: (N), long
+        #
+        # gt_offsets = instance_info[:, 0:3] - coords   # (N, 3)
+        # pt_diff = pt_offsets - gt_offsets   # (N, 3)
+        # pt_dist = torch.sum(torch.abs(pt_diff), dim=-1)   # (N)
+        # valid = (instance_labels != cfg.ignore_label).float()
+        # offset_norm_loss = torch.sum(pt_dist * valid) / (torch.sum(valid) + 1e-6)
+        #
+        # gt_offsets_norm = torch.norm(gt_offsets, p=2, dim=1)   # (N), float
+        # gt_offsets_ = gt_offsets / (gt_offsets_norm.unsqueeze(-1) + 1e-8)
+        # pt_offsets_norm = torch.norm(pt_offsets, p=2, dim=1)
+        # pt_offsets_ = pt_offsets / (pt_offsets_norm.unsqueeze(-1) + 1e-8)
+        # direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
+        # offset_dir_loss = torch.sum(direction_diff * valid) / (torch.sum(valid) + 1e-6)
+        #
+        # loss_out['offset_norm_loss'] = (offset_norm_loss, valid.sum())
+        # loss_out['offset_dir_loss'] = (offset_dir_loss, valid.sum())
 
         '''score loss'''
         scores, proposals_idx, proposals_offset, instance_pointnum = loss_inp['proposal_scores']
@@ -490,16 +490,16 @@ def model_fn_decorator(test=False):
         infos['gt_ious'] = gt_ious
         infos['gt_instance_idxs'] = gt_instance_idxs
 
-        score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-        score_loss = score_loss.mean()
+        # score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
+        # score_loss = score_loss.mean()
+        #
+        # loss_out['score_loss'] = (score_loss, gt_ious.shape[0])
+        #
+        # '''total loss'''
+        # loss = cfg.loss_weight[0] * semantic_loss + cfg.loss_weight[1] * offset_norm_loss + cfg.loss_weight[2] * offset_dir_loss
+        # loss += (cfg.loss_weight[3] * score_loss)
 
-        loss_out['score_loss'] = (score_loss, gt_ious.shape[0])
-
-        '''total loss'''
-        loss = cfg.loss_weight[0] * semantic_loss + cfg.loss_weight[1] * offset_norm_loss + cfg.loss_weight[2] * offset_dir_loss
-        loss += (cfg.loss_weight[3] * score_loss)
-
-        return loss, loss_out, infos
+        return infos
 
 
     def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):

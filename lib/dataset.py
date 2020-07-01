@@ -129,7 +129,7 @@ class ScannetReferenceDataset(Dataset):
             instance_label = id[i]['instance_labels'].copy()
             object_id = id[i]['object_id'].copy()
             scene_id = id[i]['scene_id'].copy()
-            print('scene_id: ' + str(scene_id))
+            # print('scene_id: ' + str(scene_id))
             instance_num = int(instance_label.max())
             if instance_num < object_id:
                 print('Number of instances less than object_id')

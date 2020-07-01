@@ -29,6 +29,9 @@ class RefNet(nn.Module):
         # Backbone point feature learning
         self.backbone_net = PointGroup(cfg)
 
+        for param in self.backbone_net.parameters():
+            param.requires_grad = False
+
         # Vote aggregation, detection and language reference
         self.rfnet = RefModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, use_lang_classifier)
 
@@ -107,15 +110,28 @@ class RefNet(nn.Module):
         for x in range(batch_size):
             batch_inds = batch_indices[x]
             batch_scores = scores[batch_inds]
-            gt_proposals[x, 0:len(batch_inds)] = gt_instance_idxs[batch_inds]
-            gt_ious[x, 0:len(batch_inds)] = gt_ious_all[batch_inds]
+            try:
+                gt_proposals[x, 0:len(batch_inds)] = gt_instance_idxs[batch_inds]
+                gt_ious[x, 0:len(batch_inds)] = gt_ious_all[batch_inds]
+            except:
+                print(f"[ERROR1] gt_instance_idxs[batch_inds].shap:  { gt_instance_idxs[batch_inds].shape}")
+                print(f"[ERROR1]  gt_ious_all[batch_inds]{ gt_ious_all[batch_inds]}")
+
             ious_in_batch = ious_all[batch_inds, :]
-            for j in range(ious_in_batch.shape[0]):
-                ious[x, j, 0:ious_in_batch.shape[1]] = ious_in_batch[j, :]
-            # print(f"batch_indx {batch_inds}")
+
 
             batch_score_feats = score_feats[batch_inds, :]
             number_of_object_proposals_in_batch = batch_score_feats.shape[0]
+            for j in range(ious_in_batch.shape[0]):
+                try:
+                    ious[x, j, 0:ious_in_batch.shape[1]] = ious_in_batch[j, :]
+                except:
+                    print(f"[ERROR2] Objects in batch:  {number_of_object_proposals_in_batch}")
+                    print(f"[ERROR2] IOUs in Batch {ious_in_batch.shape}")
+                    print(f"[ERROR2] Instance Labels in Batch {len(data_dict['instance_labels'][batch_inds])}")
+
+
+
             batch_proposals_indices = torch.from_numpy(np.arange(0, number_of_object_proposals_in_batch))
             if number_of_object_proposals_in_batch > self.num_proposal:
                 _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=self.num_proposal)

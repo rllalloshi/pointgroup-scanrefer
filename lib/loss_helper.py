@@ -141,20 +141,23 @@ def compute_ref_loss_ious(data_dict):
     object_id = data_dict["object_id"]
     batch_size = object_id.shape[0]
     # iou_preds = data_dict['iou_preds']
+    max_ious = torch.zeros(batch_size)
 
     loss = 0
     for i in range(batch_size):
         obj_i = object_id[i]
         iou_i = ious[i, obj_i]
         iou_i = torch.max(iou_i)
-        if iou_i < 0.001:
-            iou_i += 0.001
-        loss += - iou_i * torch.log(iou_i)
+        max_ious[i] = iou_i
+        if iou_i < 0.0001:
+            iou_i += 0.0001
+        loss += - torch.log(iou_i)
 
 
     loss /= batch_size
 
-    print(f"[IOU_LOSS]: {loss}")
+    data_dict["iou_max"] = torch.mean(max_ious).numpy()
+
 
     return loss
 
@@ -179,8 +182,9 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     ref_loss, lang_loss = compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
     data_dict["ref_loss"] = ref_loss
     data_dict["lang_loss"] = lang_loss
+    data_dict["iou_loss"] = iou_loss
 
-    loss = 0.1*ref_loss + lang_loss + 5 * iou_loss
+    loss = 0.1*ref_loss + lang_loss +  iou_loss
 
     loss *= 10 # amplify
     data_dict['loss'] = loss
