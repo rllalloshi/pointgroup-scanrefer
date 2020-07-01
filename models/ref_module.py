@@ -130,9 +130,9 @@ class RefModule(nn.Module):
         features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
 
         # --------- REFERENCE PREDICTION ---------
-        #proposal_mask = data_dict['proposal_mask'].unsqueeze(1).repeat(1, 128, 1).float().cuda()
-        #masked_features = features * proposal_mask
-        data_dict['cluster_ref'] = self.conv4(features).squeeze(1)
+        proposal_mask = data_dict['proposal_mask'].unsqueeze(1).repeat(1, 128, 1).float().cuda()
+        masked_features = features * proposal_mask
+        data_dict['cluster_ref'] = self.conv4(masked_features).squeeze(1)
 
         # print(f"data_dict['cluster_ref']: {data_dict['cluster_ref'].shape}")
         return data_dict

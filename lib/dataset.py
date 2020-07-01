@@ -104,7 +104,6 @@ class ScannetReferenceDataset(Dataset):
         feats = []
         labels = []
         instance_labels = []
-        gt_ref = []
 
         instance_infos = []  # (N, 9)
         instance_pointnum = []  # (total_nInst), int
@@ -160,7 +159,7 @@ class ScannetReferenceDataset(Dataset):
             #instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
 
             ### get instance information
-            inst_num, inst_infos, gt_ref_val = self.getInstanceInfo(xyz_middle, instance_label.astype(np.int32), object_id)
+            inst_num, inst_infos = self.getInstanceInfo(xyz_middle, instance_label.astype(np.int32), object_id)
             inst_info = inst_infos["instance_info"]  # (n, 9), (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
             inst_pointnum = inst_infos["instance_pointnum"]   # (nInst), list
 
@@ -176,7 +175,6 @@ class ScannetReferenceDataset(Dataset):
             feats.append(torch.from_numpy(rgb) + torch.randn(3) * 0.1)
             labels.append(torch.from_numpy(label))
             instance_labels.append(torch.from_numpy(instance_label.astype(np.int32)))
-            gt_ref.append(gt_ref_val)
 
             instance_infos.append(torch.from_numpy(inst_info))
             instance_pointnum.extend(inst_pointnum)
@@ -214,7 +212,6 @@ class ScannetReferenceDataset(Dataset):
         result['offsets'] = batch_offsets
         result['spatial_shape'] = spatial_shape
         result['feats'] = feats
-        result['gt_ref'] = np.array(gt_ref).astype(np.int64)
         result['batch_instance_offsets'] = np.array(batch_instance_offsets)
 
         return result
@@ -229,12 +226,8 @@ class ScannetReferenceDataset(Dataset):
                                 dtype=np.float32) * -100.0  # (n, 9), float, (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
         instance_pointnum = []  # (nInst), int
         instance_num = int(instance_label.max()) + 1
-        gt_ref = np.zeros(MAX_NUM_OBJ)
         for i_ in range(instance_num):
             inst_idx_i = np.where(instance_label == i_)
-
-            if i_ == object_id:
-                gt_ref[i_] = 1
 
             ### instance_info
             xyz_i = xyz[inst_idx_i]
@@ -254,13 +247,7 @@ class ScannetReferenceDataset(Dataset):
             ### instance_pointnum
             instance_pointnum.append(inst_idx_i[0].size)
 
-        if np.count_nonzero(gt_ref) != 1:
-            print('max instance label' + str(instance_num))
-            print('object id' + str(object_id))
-
-        assert(np.count_nonzero(gt_ref) == 1) # sanity check to see if we found a ground truth object for every scene
-
-        return instance_num, {"instance_info": instance_info, "instance_pointnum": instance_pointnum}, gt_ref
+        return instance_num, {"instance_info": instance_info, "instance_pointnum": instance_pointnum}
 
     def getCroppedInstLabel(self, instance_label, valid_idxs):
         instance_label = instance_label[valid_idxs]

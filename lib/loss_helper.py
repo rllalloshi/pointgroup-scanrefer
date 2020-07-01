@@ -113,13 +113,26 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     """
 
     # unpack
-    cluster_preds = data_dict["cluster_ref"].float().cuda().clone() # (B, num_proposal)
+    # for each batch i get max iou with gt object and mark that as the correct prediction
+    # ious tells us for each proposal iou with gt object, we have object id so we get proposal that has max iou
+    # with object id and consider that as out label
+    proposal_ious = data_dict['proposal_ious']
+    object_id = data_dict['object_id']
+    batch_instance_offsets = data_dict['batch_instance_offsets']
 
-    object_assignment = torch.from_numpy(data_dict["gt_ref"]).float().cuda()
+    cluster_preds = data_dict["cluster_ref"].float().cuda().clone() # (B, num_proposal)
+    true_labels = torch.zeros(cluster_preds.shape).float().cuda()
+    for batch in range(cluster_preds.shape[0]):
+        batch_ious = proposal_ious[batch]
+        batch_instance_offset = batch_instance_offsets[batch]
+        gt_object_id = object_id[batch] + batch_instance_offset
+        gt_object_ious = batch_ious[:, gt_object_id]
+        gt_object_proposal_idx = gt_object_ious.argmax()
+        true_labels[batch][gt_object_proposal_idx] = 1
 
     REFERENCE_CLS_WEIGHTS = [1/NUM_PROPOSALS, 1] # put larger weights on positive reference
     criterion = SoftmaxRankingLoss(REFERENCE_CLS_WEIGHTS)
-    ref_loss = criterion(cluster_preds, object_assignment)
+    ref_loss = criterion(cluster_preds, true_labels)
 
     criterion = torch.nn.CrossEntropyLoss()
     lang_loss = criterion(data_dict["lang_scores"].cuda(), data_dict["object_cat"].cuda().view(-1))

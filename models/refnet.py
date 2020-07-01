@@ -61,10 +61,10 @@ class RefNet(nn.Module):
         ret = model_fn(data_dict, self.backbone_net, 1)
 
         scores, score_feats,  proposals_idx, proposals_offset = ret['proposal_scores']
+        ious = ret['ious']
         batch_offsets = ret["batch_offsets"]
         batch_instance_offsets = data_dict["batch_instance_offsets"]
         batch_size = ret["batch_offsets"].shape[0] - 1
-        gt_instance_idxs = ret['gt_instance_idxs']
 
 
         scores = scores.cuda()
@@ -86,7 +86,6 @@ class RefNet(nn.Module):
         scores_pred = scores_pred[score_mask]
         proposals_pred = proposals_pred[score_mask]
         score_feats = score_feats[score_mask]
-        gt_instance_idxs = gt_instance_idxs[score_mask]
         proposals_to_keep = score_mask.nonzero().squeeze()
 
         ##### npoint threshold
@@ -94,7 +93,6 @@ class RefNet(nn.Module):
         npoint_mask = (proposals_pointnum > cfg.TEST_NPOINT_THRESH)
         scores_pred = scores_pred[npoint_mask]
         score_feats = score_feats[npoint_mask]
-        gt_instance_idxs = gt_instance_idxs[npoint_mask]
         proposals_to_keep = proposals_to_keep[npoint_mask.nonzero()].squeeze()
 
         ##### nms
@@ -108,7 +106,6 @@ class RefNet(nn.Module):
                                             cfg.TEST_NMS_THRESH)  # int, (nCluster, N)
         pick_idxs.sort()
         score_feats = score_feats[pick_idxs]
-        gt_instance_idxs = gt_instance_idxs[pick_idxs]
         proposals_to_keep = proposals_to_keep[pick_idxs]
 
         proposals_to_keep = proposals_to_keep.squeeze()
@@ -119,9 +116,8 @@ class RefNet(nn.Module):
             batch_indices[x] = []
 
         batch = torch.zeros(batch_size, self.num_proposal, 16)
-        # proposal_mask = torch.ones(self.num_proposal)
-        # proposal_mask[pick_idxs] = 1
         number_of_proposals_in_batch = torch.zeros(batch_size)
+        proposal_mask = torch.zeros(batch_size, self.num_proposal)
 
         proposal_i = -1
         keep_proposal_i = 0
@@ -138,17 +134,21 @@ class RefNet(nn.Module):
                     break
             batch_indices[batch_idx].append(keep_proposal_i)
             keep_proposal_i = keep_proposal_i + 1
-
+        proposal_ious = []
         for x in range(batch_size):
             batch_inds = batch_indices[x]
+            batch_ious = ious[batch_inds]
             batch_scores = score_feats[batch_inds]
-            batch_gt_instances = gt_instance_idxs[batch_inds]
             batch_score_feats = torch.zeros(self.num_proposal, 16).cuda()
-            batch_gt_instances = batch_gt_instances - batch_instance_offsets[x]
-            batch_score_feats[batch_gt_instances] = batch_scores
+            batch_score_feats[0:batch_scores.shape[0]] = batch_scores
+            proposal_mask[x, 0:batch_scores.shape[0]] = 1
             batch[x] = batch_score_feats
+            proposal_ious.append(batch_ious)
 
         batch = batch.cuda()
+        data_dict['proposal_ious'] = proposal_ious
+        data_dict['batch_instance_offsets'] = batch_instance_offsets
+        data_dict['proposal_mask'] = proposal_mask
         data_dict['pg_loss'] = ret['pg_loss']
         data_dict['number_of_proposals_in_batch'] = number_of_proposals_in_batch
         data_dict = self.rfnet(data_dict['locs'], batch, data_dict)
