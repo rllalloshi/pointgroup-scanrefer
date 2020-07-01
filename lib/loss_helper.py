@@ -137,7 +137,7 @@ def compute_reference_loss(data_dict, config, use_lang_classifier=False, use_max
     criterion = torch.nn.CrossEntropyLoss()
     lang_loss = criterion(data_dict["lang_scores"].cuda(), data_dict["object_cat"].cuda().view(-1))
 
-    return ref_loss, lang_loss, cluster_preds
+    return ref_loss, lang_loss, cluster_preds, true_labels
 
 def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_max_iou=False, post_processing=None):
     """ Loss functions
@@ -153,7 +153,7 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     """
 
     # Reference loss
-    ref_loss, lang_loss, cluster_preds = compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
+    ref_loss, lang_loss, cluster_preds, cluster_labels = compute_reference_loss(data_dict, config, use_lang_classifier, use_max_iou)
     data_dict["ref_loss"] = ref_loss
     data_dict["lang_loss"] = lang_loss
 
@@ -165,11 +165,9 @@ def get_loss(data_dict, config, reference=False, use_lang_classifier=False, use_
     with torch.no_grad():
         # reference accuracy
         cluster_preds = torch.argmax(cluster_preds, dim=1).long().unsqueeze(1).repeat(1, cluster_preds.shape[1])
-        cluster_labels = data_dict["gt_ref"]
         preds = torch.zeros(cluster_preds.shape).cuda()
         preds = preds.scatter_(1, cluster_preds, 1)
         cluster_preds = preds.cuda()
-        cluster_labels = torch.from_numpy(cluster_labels).float().cuda()
         corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
         labels = torch.ones(corrects.shape[0]).cuda()
         ref_acc = (corrects / (labels + 1e-8)).cpu().numpy()

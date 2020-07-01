@@ -400,7 +400,6 @@ def model_fn_decorator(test=False):
         ret = model(input_, p2v_map, coords_float, coords[:, 0].int(), batch_offsets, epoch)
         ret["batch_offsets"] = batch_offsets
         ret["instance_info"] = instance_info
-        ret["gt_ref"] = batch['gt_ref']
 
         semantic_scores = ret['semantic_scores']
         pt_offsets = ret['pt_offsets']
