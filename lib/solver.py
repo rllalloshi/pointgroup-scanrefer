@@ -342,7 +342,7 @@ class Solver():
     def _dump_log(self, phase):
         log = {
             "loss": ["loss", "ref_loss", "lang_loss", "pg_loss"],
-            "score": ["lang_acc", "ref_acc"]
+            "score": ["lang_acc", "ref_acc", "iou_rate_0.5", "iou_rate_0.25"]
         }
         for key in log:
             for item in log[key]:
