@@ -6,7 +6,6 @@ import numpy as np
 import sys
 import os
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
-from models.voting_module import VotingModule
 from models.ref_module import RefModule
 from lib.pointgroup import PointGroup
 from lib.util.config import cfg
@@ -80,7 +79,8 @@ class RefNet(nn.Module):
                                      device=scores_pred.device)  # (nProposal, N), int, cuda
         proposals_pred[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = 1
 
-
+        proposals_to_keep = np.arange(score_feats.shape[0])
+        '''
         ##### score threshold
         score_mask = (scores_pred > cfg.TEST_SCORE_THRESH)
         scores_pred = scores_pred[score_mask]
@@ -105,11 +105,12 @@ class RefNet(nn.Module):
         pick_idxs = non_max_suppression(cross_ious.cpu().numpy(), scores_pred.cpu().numpy(),
                                             cfg.TEST_NMS_THRESH)  # int, (nCluster, N)
         pick_idxs.sort()
+       
         score_feats = score_feats[pick_idxs]
         proposals_to_keep = proposals_to_keep[pick_idxs]
+         '''
 
         proposals_to_keep = proposals_to_keep.squeeze()
-
         proposals_offset = proposals_offset.cpu().numpy()
 
         for x in range(batch_size):
@@ -125,6 +126,7 @@ class RefNet(nn.Module):
             proposal_i = proposal_i + 1
             if proposal_i not in proposals_to_keep:
                 # proposal masked out
+                print('proposal masked out')
                 continue
             point_idx_in_proposal = proposals_idx[x][1]
             batch_idx = None
@@ -140,6 +142,10 @@ class RefNet(nn.Module):
             batch_ious = ious[batch_inds]
             batch_scores = score_feats[batch_inds]
             batch_score_feats = torch.zeros(self.num_proposal, 16).cuda()
+            if batch_scores.shape[0] > self.num_proposal:
+                _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=self.num_proposal)
+                batch_scores = batch_scores[batch_proposals_indices, :]
+
             batch_score_feats[0:batch_scores.shape[0]] = batch_scores
             proposal_mask[x, 0:batch_scores.shape[0]] = 1
             batch[x] = batch_score_feats

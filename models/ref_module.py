@@ -90,7 +90,7 @@ class RefModule(nn.Module):
             nn.Conv1d(128,1,1),
             nn.Dropout()
         )
-        
+
         self.bn1 = nn.BatchNorm1d(128)
         self.bn2 = nn.BatchNorm1d(128)
 

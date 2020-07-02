@@ -108,7 +108,7 @@ def evaluate(args):
 
         # feed
         data = model(data)
-        _, data = get_loss(data, DC, True, True, POST_DICT)
+        _, data = get_loss(data)
 
         ref_acc += data["ref_acc"]
         objectness_precisions += data["objectness_precision"]
