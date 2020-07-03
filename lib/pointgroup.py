@@ -484,7 +484,7 @@ def model_fn_decorator(test=False):
         ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_labels, instance_pointnum) # (nProposal, nInstance), float
         gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
         gt_scores = get_segmented_scores(gt_ious, cfg.fg_thresh, cfg.bg_thresh)
-
+        print(f"[IOU] {ious.shape}")
         infos['ious'] = ious
         infos['gt_ious'] = gt_ious
         infos['gt_instance_idxs'] = gt_instance_idxs

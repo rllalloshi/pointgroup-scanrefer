@@ -145,6 +145,7 @@ class RefNet(nn.Module):
             if batch_scores.shape[0] > self.num_proposal:
                 _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=self.num_proposal)
                 batch_scores = batch_scores[batch_proposals_indices, :]
+                batch_ious = batch_ious[batch_proposals_indices]
 
             batch_score_feats[0:batch_scores.shape[0]] = batch_scores
             proposal_mask[x, 0:batch_scores.shape[0]] = 1

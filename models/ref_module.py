@@ -63,6 +63,11 @@ class RefModule(nn.Module):
             hidden_size=256,
             batch_first=True
         )
+
+        self.gru_att = nn.GRU(input_size=self.glove_embed_dim, hidden_size=128, batch_first=True)
+        self.att_mat = nn.Parameter(torch.rand(128,128)).cuda()
+        torch.nn.init.normal_(self.att_mat)
+
         self.lang_sqz = nn.Sequential(
             nn.Linear(256, 128),
             nn.ReLU()
@@ -108,32 +113,63 @@ class RefModule(nn.Module):
         lang_feat = data_dict["lang_feat"].cuda().view(bs, CONF.TRAIN.MAX_DES_LEN ,self.glove_embed_dim)
         lang_len = data_dict['lang_len'].view(bs, -1).view(-1)
 
-        lang_feat = pack_padded_sequence(lang_feat, lang_len, batch_first=True, enforce_sorted=False)
+
+        n_prop = features.shape[1]
+        features = self.features_up_proj(features.view(bs*n_prop, -1)).view(bs, n_prop, -1)
+
+
+        hidden = torch.zeros(1, bs, 128).cuda()
+        outputs = torch.zeros(bs, CONF.TRAIN.MAX_DES_LEN, 128)
+        for i in range(CONF.TRAIN.MAX_DES_LEN):
+            o, h = self.gru_att(lang_feat[:, i, :].view(bs, 1, -1), hidden)
+            for j in range(bs):
+                outputs[j, i, :] = o[j]
+
+
+
+        outputs = outputs.transpose(dim0=1, dim1=2).cuda()
+        att_weights = torch.bmm(features, self.att_mat.unsqueeze(0).repeat(bs,1,1))
+        att_weights = torch.bmm(att_weights, outputs)
+        att_weights = torch.mean(att_weights, (2))
+        att_weights = att_weights.unsqueeze(2).repeat(1, 1, 128)
+
+        features = features * att_weights
+
+        # lang_feat = pack_padded_sequence(lang_feat, lang_len, batch_first=True, enforce_sorted=False)
     
         # encode description
-        _, lang_feat = self.gru(lang_feat)
+        # _, lang_feat = self.gru(lang_feat)
         data_dict["lang_emb"] = lang_feat
-        lang_feat = self.lang_sqz(lang_feat.squeeze(0)).unsqueeze(2).repeat(1, 1, self.num_proposal)
 
-        # classify
+
+
+
+        # lang_feat = self.lang_sqz(lang_feat.squeeze(0)).unsqueeze(2).repeat(1, 1, self.num_proposal)
+        outputs = outputs.transpose(dim0=1, dim1=2).cuda()
+        print(f"[1]outputs: {outputs.shape}")
+        print(f"[2]outputs: {outputs[:, -1, :].shape}")
+        # # classify
         if self.use_lang_classifier:
-            data_dict["lang_scores"] = self.lang_cls(lang_feat[:, :, 0])
+            data_dict["lang_scores"] = self.lang_cls(outputs[:, -1, :])
         
         # fuse
         # print(f"lang_feat.shape: {lang_feat.shape}")
 
 
-        n_prop = features.shape[1]
-        features = self.features_up_proj(features.view(bs*n_prop, -1)).view(bs, n_prop, -1)
-        features = features.transpose(dim0=1, dim1=2)
-        # print(f"features.shape: {features.shape}")
-        features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
 
+
+        # print(f"features.shape: {features.shape}")
+        # features = self.feat_fuse(torch.cat([features, lang_feat], dim=1))
+        print(f"data_dict['proposal_mask'] {data_dict['proposal_mask'].shape}")
         # --------- REFERENCE PREDICTION ---------
-        proposal_mask = data_dict['proposal_mask'].unsqueeze(1).repeat(1, 128, 1).float().cuda()
+        proposal_mask = data_dict['proposal_mask'].unsqueeze(2).repeat(1, 1, 128).float().cuda()
+        print(f"proposal_mask['] {proposal_mask.shape}")
+        print(f"features['] {features.shape}")
+        # features = features.transpose(dim0=1, dim1=2).cuda()
         masked_features = features * proposal_mask
+        masked_features = masked_features.transpose(dim0=1, dim1=2).cuda()
         data_dict['cluster_ref'] = self.conv4(masked_features).squeeze(1)
 
-        # print(f"data_dict['cluster_ref']: {data_dict['cluster_ref'].shape}")
+        print(f"[REF_MODULE:173]data_dict['cluster_ref']: {data_dict['cluster_ref'].shape}")
         return data_dict
 

@@ -29,6 +29,7 @@ def compute_reference_loss(data_dict):
     true_labels = torch.zeros(cluster_preds.shape).float().cuda()
     for batch in range(cluster_preds.shape[0]):
         batch_ious = proposal_ious[batch] # batch ious holds proposals - object ious shape (nProposals, nObjects)
+        print(f"[BATCH_IOU] {batch_ious.shape}")
         batch_instance_offset = batch_instance_offsets[batch]
         # this is the gt referenced object id, i add batch_instance_offset because of how pointgroup handles batches nObjects is not
         # only object in this scene but all batch scenes, so the second batch item, if gt object is 1, in batch_ious it wont
@@ -88,12 +89,21 @@ def get_loss(data_dict):
         proposal_mask = data_dict['proposal_mask'].float().cuda()
         object_id = data_dict['object_id']
         cluster_ref = data_dict['cluster_ref']
+
         predictions = torch.argmax(cluster_ref*proposal_mask, 1).detach().cpu().numpy()
         batch_instance_offsets = data_dict['batch_instance_offsets']
 
-        for batch in range(len(proposal_ious)):
+        print(f"[1]cluster_ref: {cluster_ref.shape}")
+
+        print(f"[3]proposal_mask: {proposal_mask.shape}")
+        print(f"[6]predictions: {predictions}")
+
+
+        for batch in range(cluster_ref.shape[0]):
             gt_object_id = object_id[batch] + batch_instance_offsets[batch]
+            print(f"gt_object_id {gt_object_id}; object_id[batch] {object_id[batch]} ; batch_instance_offsets[batch] {batch_instance_offsets[batch]}")
             batch_proposals = proposal_ious[batch]
+            print(f"[BATCH_IOU_EVAL]batch_proposals: {batch_proposals.shape}")
             if predictions[batch] >= len(batch_proposals):
                 print('problem')
             prediction_ious = batch_proposals[predictions[batch]]
