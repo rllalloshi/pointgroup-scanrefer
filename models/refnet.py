@@ -140,14 +140,16 @@ class RefNet(nn.Module):
         for x in range(batch_size):
             batch_inds = batch_indices[x]
             batch_ious = ious[batch_inds]
-            batch_scores = score_feats[batch_inds]
+            batch_scores_feats = score_feats[batch_inds]
+            batch_scores_pred = scores_pred[batch_inds]
             batch_score_feats = torch.zeros(self.num_proposal, 16).cuda()
-            if batch_scores.shape[0] > self.num_proposal:
-                _, batch_proposals_indices = torch.topk(batch_scores.squeeze(), k=self.num_proposal)
-                batch_scores = batch_scores[batch_proposals_indices, :]
+            if batch_scores_feats.shape[0] > self.num_proposal:
+                _, batch_proposals_indices = torch.topk(batch_scores_pred.squeeze(), k=self.num_proposal)
+                batch_scores_feats = batch_scores_feats[batch_proposals_indices, :]
+                batch_ious = batch_ious[batch_proposals_indices, :]
 
-            batch_score_feats[0:batch_scores.shape[0]] = batch_scores
-            proposal_mask[x, 0:batch_scores.shape[0]] = 1
+            batch_score_feats[0:batch_scores_feats.shape[0]] = batch_scores_feats
+            proposal_mask[x, 0:batch_scores_feats.shape[0]] = 1
             batch[x] = batch_score_feats
             proposal_ious.append(batch_ious)
 

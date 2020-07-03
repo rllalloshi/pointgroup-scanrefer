@@ -286,7 +286,7 @@ class Solver():
                     self._train_report(epoch_id)
 
                 # evaluation
-                if False and self._global_iter_id % self.val_step == 0:
+                if self._global_iter_id % self.val_step == 0:
                      print("evaluating...")
                      # val
                      self._feed(self.dataloader["val"], "val", epoch_id)

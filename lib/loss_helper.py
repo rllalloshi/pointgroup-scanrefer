@@ -96,8 +96,11 @@ def get_loss(data_dict):
             batch_proposals = proposal_ious[batch]
             if predictions[batch] >= len(batch_proposals):
                 print('problem')
-            prediction_ious = batch_proposals[predictions[batch]]
-            ious.append(prediction_ious[gt_object_id])
+            try:
+                prediction_ious = batch_proposals[predictions[batch]]
+                ious.append(prediction_ious[gt_object_id])
+            except Exception:
+                print('Exception on iou calculation')
 
         print(ious)
         data_dict["ref_iou"] = ious
