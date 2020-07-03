@@ -88,24 +88,20 @@ def get_loss(data_dict):
         proposal_mask = data_dict['proposal_mask'].float().cuda()
         object_id = data_dict['object_id']
         cluster_ref = data_dict['cluster_ref']
-        predictions = torch.argmax(cluster_ref*proposal_mask, 1).detach().cpu().numpy()
+        cluster_ref_1 = torch.where(proposal_mask == 0, torch.tensor(-100000).float().cuda(), cluster_ref)
+        predictions = torch.argmax(cluster_ref_1, 1).detach().cpu().numpy()
         batch_instance_offsets = data_dict['batch_instance_offsets']
 
         for batch in range(len(proposal_ious)):
             gt_object_id = object_id[batch] + batch_instance_offsets[batch]
             batch_proposals = proposal_ious[batch]
-            if predictions[batch] >= len(batch_proposals):
-                print('problem')
-            try:
-                prediction_ious = batch_proposals[predictions[batch]]
-                ious.append(prediction_ious[gt_object_id])
-            except Exception:
-                print('Exception on iou calculation')
+            prediction_ious = batch_proposals[predictions[batch]]
+            ious.append(prediction_ious[gt_object_id])
 
-        print(ious)
+        ious_count = np.array(ious).shape[0]
         data_dict["ref_iou"] = ious
-        data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
-        data_dict["ref_iou_rate_0.5"] = np.array(ious)[np.array(ious) >= 0.5].shape[0] / np.array(ious).shape[0]
+        data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / ious_count
+        data_dict["ref_iou_rate_0.5"] = np.array(ious)[np.array(ious) >= 0.5].shape[0] / ious_count
 
 
 
